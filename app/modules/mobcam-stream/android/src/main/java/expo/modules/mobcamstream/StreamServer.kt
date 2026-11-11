@@ -15,21 +15,24 @@ private const val TAG = "MobcamServer"
 private const val MAX_QUEUED_FRAMES = 30 // ~1 s at 30 fps
 
 /**
- * Serves the raw H.264 Annex-B elementary stream over TCP.
- *
- * No framing: a client just reads bytes and feeds them to a decoder
- * (`ffplay -f h264 tcp://<phone>:5000` works as-is). The same port serves Wi-Fi clients and
- * USB clients (via `adb forward`, which shows up as a loopback connection).
+ * Serves the H.264 stream to PCs over protocol v2 (docs/protocol.md): every connection runs the
+ * pairing/authentication handshake in [SecureChannel], then frames go out as encrypted VIDEO
+ * records and commands come in as COMMAND records. The same port serves Wi-Fi clients and USB
+ * clients (via `adb forward`, which shows up as a loopback connection).
  */
 class StreamServer(
   private val port: Int,
+  private val phoneName: String,
+  private val gate: PairingGate,
   private val onClientsChanged: () -> Unit,
   private val onKeyFrameNeeded: () -> Unit,
-  /** Text commands from the PC, one per line ("SWITCH", "RES 720", ...). */
+  /** Remote-control commands from the PC ("SWITCH", "RES 720", ...). */
   private val onCommand: (String) -> Unit,
+  /** A PC with a different protocol version connected (null = an old v1 PC). */
+  private val onVersionMismatch: (Int?) -> Unit,
 ) : FrameSink {
 
-  private class Client(val socket: Socket) {
+  private class Client(val socket: Socket, val channel: SecureChannel) {
     val usb: Boolean = socket.inetAddress.isLoopbackAddress
     val queue = LinkedBlockingQueue<ByteArray>(MAX_QUEUED_FRAMES)
     @Volatile var synced = false // touched only by the encoder thread
@@ -37,6 +40,7 @@ class StreamServer(
   }
 
   private val clients = CopyOnWriteArrayList<Client>()
+  private val handshaking = CopyOnWriteArrayList<Socket>()
   @Volatile private var serverSocket: ServerSocket? = null
   @Volatile private var running = false
 
@@ -52,6 +56,7 @@ class StreamServer(
   fun stop() {
     running = false
     try { serverSocket?.close() } catch (_: IOException) {}
+    handshaking.forEach { closeQuietly(it) }
     clients.forEach { drop(it) }
   }
 
@@ -83,13 +88,7 @@ class StreamServer(
             val socket = ss.accept()
             socket.tcpNoDelay = true
             socket.sendBufferSize = 512 * 1024
-            val client = Client(socket)
-            clients += client
-            Log.i(TAG, "Client connected: ${socket.inetAddress.hostAddress} (usb=${client.usb})")
-            thread(name = "MobcamClient", isDaemon = true) { writeLoop(client) }
-            thread(name = "MobcamClientIn", isDaemon = true) { readLoop(client) }
-            onClientsChanged()
-            onKeyFrameNeeded()
+            thread(name = "MobcamHandshake", isDaemon = true) { handshake(socket) }
           }
         }
       } catch (e: IOException) {
@@ -101,12 +100,41 @@ class StreamServer(
     }
   }
 
+  /** Authenticates (and if needed pairs) the PC, then starts streaming to it. */
+  private fun handshake(socket: Socket) {
+    val usb = socket.inetAddress.isLoopbackAddress
+    handshaking += socket
+    val channel = try {
+      SecureChannel(socket, phoneName).also { it.handshake(gate, usb) }
+    } catch (e: VersionException) {
+      Log.w(TAG, "PC ${socket.inetAddress.hostAddress} speaks protocol ${e.peerVersion ?: 1}")
+      onVersionMismatch(e.peerVersion)
+      closeQuietly(socket)
+      return
+    } catch (e: Exception) {
+      Log.w(TAG, "Handshake with ${socket.inetAddress.hostAddress} failed: ${e.message}")
+      closeQuietly(socket)
+      return
+    } finally {
+      handshaking -= socket
+    }
+    if (!running) { closeQuietly(socket); return }
+
+    val client = Client(socket, channel)
+    clients += client
+    Log.i(TAG, "Client connected: ${socket.inetAddress.hostAddress} (usb=$usb, pc=${channel.pc?.name})")
+    thread(name = "MobcamClient", isDaemon = true) { writeLoop(client) }
+    thread(name = "MobcamClientIn", isDaemon = true) { readLoop(client) }
+    onClientsChanged()
+    onKeyFrameNeeded()
+  }
+
   private fun writeLoop(client: Client) {
     try {
       val out = BufferedOutputStream(client.socket.getOutputStream(), 64 * 1024)
       while (running && client.open) {
         val frame = client.queue.poll(500, TimeUnit.MILLISECONDS) ?: continue
-        out.write(frame)
+        client.channel.writeRecord(Proto.REC_VIDEO, frame, out)
         if (client.queue.isEmpty()) out.flush()
       }
     } catch (_: IOException) {
@@ -117,13 +145,13 @@ class StreamServer(
     }
   }
 
-  /** Reads remote-control commands; EOF means the PC closed the connection. */
+  /** Reads remote-control commands; EOF or a bad record means the PC is gone. */
   private fun readLoop(client: Client) {
     try {
-      val reader = client.socket.getInputStream().bufferedReader(Charsets.US_ASCII)
       while (running && client.open) {
-        val line = reader.readLine() ?: break
-        val command = line.trim()
+        val (type, payload) = client.channel.readRecord()
+        if (type != Proto.REC_COMMAND) continue // ignore types from newer PCs
+        val command = String(payload, Charsets.US_ASCII).trim()
         if (command.isNotEmpty()) {
           Log.i(TAG, "Command: $command")
           onCommand(command)
@@ -133,6 +161,10 @@ class StreamServer(
     } finally {
       drop(client)
     }
+  }
+
+  private fun closeQuietly(socket: Socket) {
+    try { socket.close() } catch (_: IOException) {}
   }
 
   private fun drop(client: Client) {

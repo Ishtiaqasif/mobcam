@@ -2,7 +2,6 @@ package expo.modules.mobcamstream
 
 import android.content.Context
 import android.net.wifi.WifiManager
-import android.os.Build
 import android.util.Log
 import java.io.IOException
 import java.net.DatagramPacket
@@ -44,7 +43,7 @@ class DiscoveryResponder(context: Context, private val port: Int, private val st
   }
 
   private fun loop() {
-    val name = "${Build.MANUFACTURER} ${Build.MODEL}"
+    val name = Mobcam.deviceName
     while (running) {
       try {
         DatagramSocket(null).use { s ->
