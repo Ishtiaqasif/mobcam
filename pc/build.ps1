@@ -14,7 +14,7 @@ if (-not (Test-Path $cmake)) { $cmake = 'cmake' }
 # A running app locks its DLLs.
 Get-Process MobCam, mobcam-cli -ErrorAction SilentlyContinue | Stop-Process -Force
 
-& $cmake -S $root -B "$root\build" -G "Visual Studio 17 2022" -A x64 | Out-Null
+& $cmake -S $root -B "$root\build" -A x64 | Out-Null  # newest installed Visual Studio generator
 & $cmake --build "$root\build" --config Release
 if ($LASTEXITCODE -ne 0) { throw "native build failed" }
 

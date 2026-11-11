@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an idea for MobCam
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Describe the problem or use case rather than a specific solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed solution
+  - type: dropdown
+    id: side
+    attributes:
+      label: Which part?
+      options:
+        - Phone app
+        - Windows app
+        - Both

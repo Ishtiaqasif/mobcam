@@ -1,0 +1,51 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection
+      options:
+        - USB
+        - Wi-Fi
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone model and Android version
+      placeholder: e.g. OnePlus CPH2747, Android 17
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: e.g. Windows 11 24H2 (build 26100)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: MobCam version
+      placeholder: e.g. 1.0.0
+  - type: input
+    id: app
+    attributes:
+      label: Video app (if the camera is involved)
+      placeholder: e.g. Teams, Zoom, OBS, Windows Camera
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Contents of C:\ProgramData\MobCam\mobcam-source.log, if relevant.
+      render: text

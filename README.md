@@ -1,8 +1,59 @@
+<div align="center">
+
+<img src="docs/images/icon.png" width="96" alt="MobCam icon" />
+
 # MobCam
 
-Use an Android phone as a webcam on Windows 11, over a USB cable or the same Wi-Fi.
-The phone streams hardware-encoded H.264 (up to 1080p30); the PC decodes it and feeds a
-virtual camera named **MobCam** that Zoom, Teams, Meet, OBS and the Camera app can pick.
+**Turn your Android phone into a high-quality webcam for Windows 11, over USB or Wi-Fi.**
+
+[![Latest release](https://img.shields.io/github/v/release/Ishtiaqasif/mobcam?label=download)](https://github.com/Ishtiaqasif/mobcam/releases/latest)
+[![CI](https://github.com/Ishtiaqasif/mobcam/actions/workflows/ci.yml/badge.svg)](https://github.com/Ishtiaqasif/mobcam/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows11&logoColor=white)
+![Android 7+](https://img.shields.io/badge/Android-7%2B-3DDC84?logo=android&logoColor=white)
+
+[**Download**](#download) · [Features](#features) · [How it works](#how-it-works) · [Build from source](#development)
+
+<img src="docs/images/pc-app.png" width="820" alt="MobCam Windows app" />
+
+</div>
+
+## Download
+
+Get both files from the [latest release](https://github.com/Ishtiaqasif/mobcam/releases/latest):
+
+| | File | Requirements |
+|---|---|---|
+| 🖥️ **Windows** | `MobCam-Setup-<version>.exe` | Windows 11 (x64). Nothing else; the .NET runtime is included. |
+| 📱 **Android** | `MobCam-<version>.apk` | Android 7.0+ (arm64) |
+
+### Setup
+
+1. **PC:** run the installer. It installs the MobCam app and the **MobCam** virtual camera.
+2. **Phone:** open the APK and allow installing from this source when Android asks.
+3. Open MobCam on the phone, then on the PC. They find each other automatically:
+   - **USB** (lowest delay, charges the phone): turn on **USB debugging** in the phone's
+     *Developer options* and accept the prompt when you plug it in.
+   - **Wi-Fi**: phone and PC on the same network. Allow MobCam through the Windows firewall
+     the first time.
+4. In Zoom, Teams, Meet, OBS, your browser or the Camera app, choose **MobCam** as the camera.
+
+## Features
+
+- **Up to 1080p at 30 fps**, hardware H.264 encoding on the phone and low-latency decoding on the PC
+- **Real Windows camera**: shows up as *MobCam* in every app, no OBS or plugins needed
+- **USB or Wi-Fi**, with automatic discovery and reconnection
+- **Every lens**: ultra-wide, wide, telephoto and front camera, switchable from the phone or the PC
+- **Always upright**: follows how the phone is mounted; manual rotation and Fit/Fill framing too
+- **Remote control** of lens and quality from the PC
+- Live preview, tray mode and start with Windows
+- Command-line client (`mobcam-cli`) for scripting
+
+<div align="center">
+<img src="docs/images/phone-app.png" width="720" alt="MobCam phone app" />
+</div>
+
+## How it works
 
 ```
  phone (app/)                                    PC (pc/)
@@ -16,74 +67,77 @@ virtual camera named **MobCam** that Zoom, Teams, Meet, OBS and the Camera app c
                                              └──────────────────────────────┘
 ```
 
+The phone captures with Camera2 straight into the hardware H.264 encoder (no frame copies) and
+serves the stream over TCP. Over USB the PC tunnels it with `adb forward`; on Wi-Fi it finds the
+phone with a UDP broadcast. The PC decodes with Media Foundation, applies rotation and framing,
+and hands the frames to a Media Foundation virtual camera (`MFCreateVirtualCamera`, Windows 11)
+that Windows Frame Server exposes to all apps. Details: [docs/protocol.md](docs/protocol.md).
+
 ## Repository layout
 
 | Path | What |
 |---|---|
-| [app/](app/) | Android app (Expo SDK 58, React Native). The camera/encoder/server lives in the local native module [app/modules/mobcam-stream/](app/modules/mobcam-stream/) (Kotlin). |
-| [pc/core/](pc/core/) | C++ engine with a C API ([mobcam_core.h](pc/core/mobcam_core.h)): discovery, adb, decoding, picture processing, virtual camera control. Built as `mobcam-core.dll`. |
-| [pc/gui/](pc/gui/) | Windows app `MobCam.exe` (WPF, .NET 10, Fluent theme) on top of `mobcam-core.dll`. |
-| [pc/cli/](pc/cli/) | `mobcam-cli.exe`, command-line front end and the elevated installer helper. |
-| [pc/source/](pc/source/) | `mobcam-source.dll`, the Media Foundation virtual camera loaded by Windows Frame Server. |
-| [pc/common/](pc/common/) | Code shared by the PC binaries (shared-memory layout, NV12 scaling). |
-| [docs/protocol.md](docs/protocol.md) | Phone ⇄ PC wire protocol (stream, metadata, commands, discovery). |
+| [app/](app/) | Android app (Expo SDK 58, React Native). Camera, encoder and server live in the local native module [app/modules/mobcam-stream/](app/modules/mobcam-stream/) (Kotlin). |
+| [pc/core/](pc/core/) | C++ engine with a C API ([mobcam_core.h](pc/core/mobcam_core.h)): discovery, adb, decoding, picture processing, virtual camera control. |
+| [pc/gui/](pc/gui/) | Windows app `MobCam.exe` (WPF, .NET 10, Fluent theme). |
+| [pc/cli/](pc/cli/) | `mobcam-cli.exe`, command-line client and elevated installer helper. |
+| [pc/source/](pc/source/) | `mobcam-source.dll`, the virtual camera loaded by Windows Frame Server. |
+| [pc/common/](pc/common/) | Shared PC code (shared-memory layout, NV12 scaling). |
 | [pc/installer/](pc/installer/) | Inno Setup script for the Windows installer. |
+| [docs/](docs/) | Protocol documentation and README images. |
 | [scripts/](scripts/) | Dev, release and icon scripts. |
-
-## Install (end users)
-
-- **PC (Windows 11):** run `MobCam-Setup-<version>.exe`. It installs to `C:\Program Files\MobCam`
-  and registers the virtual camera; no .NET install needed.
-- **Phone (Android 7+):** install `MobCam-<version>.apk` (allow installing from this source when
-  asked). USB mode additionally needs **USB debugging** turned on in Developer options.
-
-## Release builds
-
-```powershell
-npm run release       # both of the below
-npm run release:pc    # dist\MobCam-Setup-<version>.exe  (needs: winget install JRSoftware.InnoSetup)
-npm run release:phone # dist\MobCam-<version>.apk        (add -Install via the script to adb-install it)
-```
-
-Bump the version in `pc/gui/MobCam.csproj` (PC) and `app/app.json` (`version` and
-`android.versionCode`, phone) before a release.
-
-The APK is signed with `%USERPROFILE%\.mobcam\mobcam-release.jks`, created on the first release
-build with its password in `keystore.properties` next to it. **Back both files up**: Android only
-installs updates signed with the same key.
 
 ## Development
 
-Prerequisites: Node.js, Android SDK (platform-tools), JDK 17 (`winget install Microsoft.OpenJDK.17`),
-Visual Studio 2022 **Build Tools** with the C++ workload and Windows 11 SDK (no IDE needed),
-.NET 10 SDK.
+Everything builds from the command line on Windows 11; no IDE needed.
+
+**Prerequisites:** Node.js, Android SDK platform-tools, JDK 17 (`winget install Microsoft.OpenJDK.17`),
+Visual Studio 2022 **Build Tools** with the C++ workload and Windows 11 SDK, .NET 10 SDK, and for
+release builds Inno Setup (`winget install JRSoftware.InnoSetup`).
 
 ```powershell
-npm run phone           # debug build of the phone app over USB + Metro
+npm run phone           # debug build of the phone app on a USB-connected phone (+ Metro)
 npm run phone:typecheck
 npm run pc:run          # build the PC side into pc\build\bin and start MobCam.exe
-npm run icons           # regenerate the app icons from scripts/make-icons.ps1
+npm run icons           # regenerate app icons (scripts/make-icons.ps1)
 ```
 
 A development build of MobCam.exe offers to **install/update the virtual camera** (one UAC
-prompt): it copies `mobcam-source.dll` to `C:\Program Files\MobCam`, because Frame Server can't
-load it from a user folder. A debug and a release APK are signed with different keys, so
-uninstall one before installing the other (`adb uninstall com.mobcam.app`).
+prompt). It copies `mobcam-source.dll` to `C:\Program Files\MobCam`, because Frame Server can't
+load it from a user folder. Debug and release APKs are signed with different keys, so uninstall
+one before installing the other (`adb uninstall com.mobcam.app`).
 
-## Using it
+### Releasing
 
-1. Open MobCam on the phone.
-2. Start `MobCam.exe` on the PC. It connects over USB if the phone is plugged in, otherwise it
-   finds the phone on Wi-Fi.
-3. Choose **MobCam** as the camera in your video app.
+1. Bump the version in `pc/gui/MobCam.csproj`, `app/app.json` (`version` and
+   `android.versionCode`) and add a section to [CHANGELOG.md](CHANGELOG.md).
+2. Build both installers into `dist\`:
+   ```powershell
+   npm run release
+   ```
+3. Tag and publish:
+   ```powershell
+   git tag v1.2.3; git push origin v1.2.3
+   gh release create v1.2.3 dist\MobCam-Setup-1.2.3.exe dist\MobCam-1.2.3.apk --title "MobCam 1.2.3" --notes-file <notes>
+   ```
 
-From the PC app you can pick the phone lens (ultra-wide / wide / telephoto / front), the
-quality (480p/720p/1080p), rotation and Fit/Fill framing. Closing the window keeps MobCam
-running in the tray.
+The APK is signed with `%USERPROFILE%\.mobcam\mobcam-release.jks` (created on the first release
+build, password in `keystore.properties` next to it). **Back both up**: Android only installs
+updates signed with the same key.
 
 ## Troubleshooting
 
-- Virtual camera log: `C:\ProgramData\MobCam\mobcam-source.log`
-- Wi-Fi: allow MobCam through the Windows firewall when asked; phone and PC must be on the same network.
-- Native builds of React Native libraries can exceed Windows' 260-character path limit in deep
-  folders; enable long paths or keep the repo near the drive root if you add such libraries.
+- **MobCam doesn't appear in my video app:** make sure MobCam.exe is running (tray icon). The
+  camera exists only while it runs.
+- **Phone not found on Wi-Fi:** same network on both, MobCam open on the phone, firewall allowed.
+  You can also type the phone's address (shown on the phone) in the PC app.
+- **USB not detected:** USB debugging on, prompt accepted, and a data cable (not charge-only).
+- Virtual camera log: `C:\ProgramData\MobCam\mobcam-source.log`.
+
+## Contributing
+
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE)
