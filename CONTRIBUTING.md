@@ -19,6 +19,15 @@ npm run pc:run          # build and start the Windows app
 npm run phone:typecheck
 ```
 
+## Branches
+
+- `main` is the released code. It is protected: changes land only through pull requests with a
+  passing CI, and every release is tagged from it (`v1.2.3`).
+- `dev` is where development happens. Branch off `dev` (e.g. `feature/zoom-slider`,
+  `fix/wifi-reconnect`) and open pull requests against `dev`.
+- To release, open a pull request from `dev` to `main`, merge it, then tag and publish
+  (see [Releasing](README.md#releasing)).
+
 ## Pull requests
 
 - Keep each pull request focused on one change and describe how you tested it

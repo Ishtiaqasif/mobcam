@@ -109,8 +109,12 @@ one before installing the other (`adb uninstall com.mobcam.app`).
 
 ### Releasing
 
-1. Bump the version in `pc/gui/MobCam.csproj`, `app/app.json` (`version` and
-   `android.versionCode`) and add a section to [CHANGELOG.md](CHANGELOG.md).
+Development happens on `dev`; `main` only receives pull requests and holds released code
+(see [CONTRIBUTING.md](CONTRIBUTING.md#branches)).
+
+1. On `dev`, bump the version in `pc/gui/MobCam.csproj`, `app/app.json` (`version` and
+   `android.versionCode`) and add a section to [CHANGELOG.md](CHANGELOG.md). Open a pull
+   request `dev` → `main`, merge it once CI passes, and check out `main`.
 2. Build both installers into `dist\`:
    ```powershell
    npm run release
