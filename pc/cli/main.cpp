@@ -42,6 +42,7 @@ const wchar_t* StateName(int s) {
     case MC_STATE_SEARCHING: return L"searching";
     case MC_STATE_CONNECTING: return L"connecting";
     case MC_STATE_STREAMING: return L"live";
+    case MC_STATE_PAIRING: return L"pairing";
     default: return L"idle";
   }
 }
@@ -126,10 +127,24 @@ int wmain(int argc, wchar_t** argv) {
   mc_set_fill(fill ? 1 : 0);
   mc_connect(link, host.c_str(), port);
 
+  int shownCode = -1;
   while (!g_quit) {
     Sleep(1000);
     mc_status s{};
     mc_get_status(&s);
+    if (s.state == MC_STATE_PAIRING && s.pairing_code >= 0) {
+      if (s.pairing_code != shownCode) {
+        shownCode = s.pairing_code;
+        wprintf(L"\n\n  Pairing with %s\n  Code:  %03d %03d\n  Check that the phone shows the same code and tap Allow.\n\n",
+                s.peer, shownCode / 1000, shownCode % 1000);
+      }
+      continue;
+    }
+    shownCode = -1;
+    if (s.state == MC_STATE_IDLE && s.problem != MC_PROBLEM_NONE) {
+      wprintf(L"\n  %s\n", s.message);
+      break;  // the engine stopped; the user has to act on the phone first
+    }
     if (s.state == MC_STATE_STREAMING && s.width) {
       wprintf(L"\r  %-4s | %s | %dx%d | %2d fps | %5d kbps | rot %3d | camera %-6s     ",
               s.link == MC_LINK_USB ? L"USB" : L"Wi-Fi", s.peer, s.width, s.height, s.fps, s.kbps, s.rotation,

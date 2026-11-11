@@ -12,6 +12,7 @@
 #include "../common/shared_frame.h"
 #include "internal.h"
 #include "mobcam_core.h"
+#include "secure.h"
 
 namespace mobcam {
 namespace {
@@ -87,6 +88,7 @@ class Engine {
     {
       std::lock_guard<std::mutex> g(statusMu_);
       ResetStreamStatus();
+      status_.problem = MC_PROBLEM_NONE;
       status_.state = MC_STATE_SEARCHING;
       Copy(status_.message, 256, L"Looking for your phone…");
     }
@@ -135,11 +137,19 @@ class Engine {
     return n;
   }
 
-  bool SendCommand(const std::string& command) {
-    SOCKET s = socket_.load();
-    if (s == INVALID_SOCKET) return false;
-    const std::string line = command + "\n";
-    return send(s, line.data(), int(line.size()), 0) == int(line.size());
+  bool SendCommand(const std::string& command) { return session_.SendCommand(command); }
+
+  int GetPairedPhones(mc_paired_phone* out, int max) {
+    int n = 0;
+    for (const auto& p : ListPairedPhones()) {
+      if (n >= max) break;
+      mc_paired_phone& d = out[n++];
+      d = {};
+      d.paired_at = p.pairedAt;
+      Copy(d.id, 72, p.id);
+      Copy(d.name, 128, p.name);
+    }
+    return n;
   }
 
   // ------------------------------------------------------------ picture
@@ -216,6 +226,7 @@ class Engine {
     status_.phone_rotation = -1;
     status_.phone_facing = -1;
     status_.phone_lens = -1;
+    status_.pairing_code = -1;
     Copy(status_.message, 256, L"Not connected");
   }
 
@@ -229,6 +240,92 @@ class Engine {
     status_.lens_count = 0;
     lenses_.clear();
     status_.peer[0] = 0;
+    status_.pairing_code = -1;
+  }
+
+  // Like SetState, but keeps the message of an unresolved problem (e.g. "update the phone app")
+  // visible while the engine keeps retrying.
+  void SetProgress(int state, const std::wstring& message) {
+    std::lock_guard<std::mutex> g(statusMu_);
+    status_.state = state;
+    if (status_.problem == MC_PROBLEM_NONE) Copy(status_.message, 256, message);
+  }
+
+  void SetProblem(int state, int problem, const std::wstring& message) {
+    std::lock_guard<std::mutex> g(statusMu_);
+    status_.state = state;
+    status_.problem = problem;
+    status_.pairing_code = -1;
+    Copy(status_.message, 256, message);
+  }
+
+  // Runs the v2 handshake. Returns true to stream; otherwise sets the status and *retry
+  // (false = stop until the user connects again).
+  bool Authenticate(SOCKET s, int usedLink, const std::wstring& peer, bool* retry) {
+    *retry = true;
+    HandshakeInfo info;
+    const HandshakeResult r = session_.Handshake(s, usedLink == MC_LINK_USB, [&](int code) {
+      wchar_t text[256];
+      swprintf_s(text, L"Pairing: check that %s shows %03d %03d and tap Allow", peer.c_str(), code / 1000, code % 1000);
+      std::lock_guard<std::mutex> g(statusMu_);
+      status_.state = MC_STATE_PAIRING;
+      status_.pairing_code = code;
+      Copy(status_.peer, 128, peer);
+      Copy(status_.message, 256, text);
+    }, &info);
+    if (stop_) return false;
+    switch (r) {
+      case HandshakeResult::Ok:
+        return true;
+      case HandshakeResult::PhoneTooOld:
+        SetProblem(MC_STATE_SEARCHING, MC_PROBLEM_PHONE_TOO_OLD,
+                   L"The MobCam app on your phone is too old. Update it to connect.");
+        return false;
+      case HandshakeResult::PhoneTooNew:
+        SetProblem(MC_STATE_SEARCHING, MC_PROBLEM_PC_TOO_OLD,
+                   L"The MobCam app on your phone is newer than this PC app. Update MobCam on the PC.");
+        return false;
+      case HandshakeResult::NotPaired:
+        *retry = false;
+        SetProblem(MC_STATE_IDLE, MC_PROBLEM_NOT_PAIRED,
+                   L"This PC forgot the phone. On the phone, open Paired PCs, forget this PC, then connect again.");
+        return false;
+      case HandshakeResult::Denied:
+        switch (info.deniedReason) {
+          case kDeniedBusy:
+            SetProblem(MC_STATE_SEARCHING, MC_PROBLEM_AUTH_FAILED,
+                       L"The phone is showing another pairing request. Answer it first.");
+            return false;
+          case kDeniedTimeout:
+            *retry = false;
+            SetProblem(MC_STATE_IDLE, MC_PROBLEM_PAIRING_TIMEOUT, L"Pairing timed out. Connect again and tap Allow on the phone.");
+            return false;
+          case kDeniedBadPc:
+            SetProblem(MC_STATE_SEARCHING, MC_PROBLEM_AUTH_FAILED, L"The phone rejected this PC's identity. Retrying…");
+            return false;
+          default:
+            *retry = false;
+            SetProblem(MC_STATE_IDLE, MC_PROBLEM_DENIED, L"Pairing was denied on the phone.");
+            return false;
+        }
+      case HandshakeResult::Failed:
+      default: {
+        // A timeout while the phone was asking means nobody answered.
+        int wasPairing = 0;
+        {
+          std::lock_guard<std::mutex> g(statusMu_);
+          wasPairing = status_.state == MC_STATE_PAIRING;
+        }
+        if (wasPairing) {
+          *retry = false;
+          SetProblem(MC_STATE_IDLE, MC_PROBLEM_PAIRING_TIMEOUT, L"Pairing was not completed. Connect again to retry.");
+        } else {
+          SetProblem(MC_STATE_SEARCHING, MC_PROBLEM_AUTH_FAILED,
+                     L"Secure connection failed: " + Widen(info.error) + L". Retrying…");
+        }
+        return false;
+      }
+    }
   }
 
   void SetState(int state, const std::wstring& message) {
@@ -299,7 +396,7 @@ class Engine {
     std::vector<char> buffer(256 * 1024);
 
     while (!stop_) {
-      SetState(MC_STATE_SEARCHING, L"Looking for your phone…");
+      SetProgress(MC_STATE_SEARCHING, L"Looking for your phone…");
       std::string host;
       uint16_t port = 0;
       int usedLink = 0;
@@ -309,7 +406,7 @@ class Engine {
         continue;
       }
 
-      SetState(MC_STATE_CONNECTING, L"Connecting to " + peer + L"…");
+      SetProgress(MC_STATE_CONNECTING, L"Connecting to " + peer + L"…");
       std::string err;
       SOCKET s = ConnectTcp(host, port, 3000, &err);
       if (s == INVALID_SOCKET) {
@@ -320,9 +417,26 @@ class Engine {
       socket_ = s;
       if (stop_) break;
 
+      SetProgress(MC_STATE_CONNECTING, L"Securing the connection to " + peer + L"…");
+      bool retry = true;
+      // A hand-typed 127.0.0.1 is an adb forward too; the phone treats loopback as USB.
+      const int trustLink = host == "127.0.0.1" ? MC_LINK_USB : usedLink;
+      if (!Authenticate(s, trustLink, peer, &retry)) {
+        CloseSocket();
+        session_.Reset();
+        if (!retry) break;  // the user has to act (denied, timed out...); mc_connect starts over
+        Wait(3000);
+        continue;
+      }
+      {
+        std::lock_guard<std::mutex> g(statusMu_);
+        status_.problem = MC_PROBLEM_NONE;
+      }
+
       if (FAILED(decoder.Init())) {
         SetState(MC_STATE_SEARCHING, L"H.264 decoder unavailable");
         CloseSocket();
+        session_.Reset();
         Wait(2000);
         continue;
       }
@@ -352,11 +466,16 @@ class Engine {
         timestamp += 333333;
       };
 
+      auto onVideo = [&](const uint8_t* data, size_t length) { assembler.Push(data, length); };
+      bool damaged = false;
       while (!stop_) {
         const int n = recv(s, buffer.data(), int(buffer.size()), 0);
         if (n <= 0) break;
         bytes += n;
-        assembler.Push(reinterpret_cast<const uint8_t*>(buffer.data()), size_t(n));
+        if (!session_.Receive(reinterpret_cast<const uint8_t*>(buffer.data()), size_t(n), onVideo)) {
+          damaged = true;
+          break;
+        }
 
         const ULONGLONG now = GetTickCount64();
         if (now - lastReport >= 1000) {
@@ -382,13 +501,15 @@ class Engine {
       }
 
       CloseSocket();
+      session_.Reset();
       decoder.Close();
       if (!stop_) {
         {
           std::lock_guard<std::mutex> g(statusMu_);
           ResetStreamStatus();
         }
-        SetState(MC_STATE_SEARCHING, L"Phone disconnected. Reconnecting…");
+        SetState(MC_STATE_SEARCHING, damaged ? L"Received damaged or forged data. Reconnecting…"
+                                             : L"Phone disconnected. Reconnecting…");
         Wait(1000);
       }
     }
@@ -416,6 +537,7 @@ class Engine {
   std::thread worker_;
   std::atomic<bool> stop_{false};
   std::atomic<SOCKET> socket_{INVALID_SOCKET};
+  SecureSession session_;
   std::mutex statusMu_;
   mc_status status_{};
   std::vector<PhoneLens> lenses_;  // guarded by statusMu_
@@ -497,5 +619,12 @@ MC_API int32_t mc_get_lenses(mc_lens* lenses, int32_t max_lenses) {
 MC_API int32_t mc_phone_command(const char* command) {
   return command && Engine::Get().SendCommand(command) ? 1 : 0;
 }
+
+MC_API int32_t mc_get_paired_phones(mc_paired_phone* phones, int32_t max_phones) {
+  if (!phones || max_phones <= 0) return 0;
+  return Engine::Get().GetPairedPhones(phones, max_phones);
+}
+
+MC_API int32_t mc_forget_phone(const wchar_t* id) { return id && mobcam::ForgetPairedPhone(id) ? 1 : 0; }
 
 }  // extern "C"

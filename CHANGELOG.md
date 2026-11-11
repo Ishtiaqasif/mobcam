@@ -4,6 +4,17 @@ All notable changes to MobCam are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Security
+- **Wi-Fi pairing and encryption** (protocol v2). Others on the same Wi-Fi can no longer watch the
+  camera or control the phone. The first time a PC connects over Wi-Fi, both screens show a
+  6-digit code and the phone asks *Allow / Deny*. After that the PC reconnects without asking.
+  Video and commands are encrypted (AES-256-GCM) on Wi-Fi and USB alike; USB never asks.
+- The phone app has a **Paired PCs** list with *Forget*.
+- Phone and PC apps from before this change can't connect to each other; both tell you to update.
+- Raw testing with `ffplay tcp://<phone>:5000` no longer works.
+
 ## [1.0.0] - 2026-11-12
 
 First release.
@@ -22,4 +33,5 @@ First release.
 - Installer that sets up the app and the virtual camera in one step.
 - `mobcam-cli` command-line client.
 
+[Unreleased]: https://github.com/Ishtiaqasif/mobcam/compare/v1.0.0...dev
 [1.0.0]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.0.0

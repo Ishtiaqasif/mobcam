@@ -260,6 +260,7 @@ public partial class MainWindow : Window
         {
             Native.StateStreaming => (live ? $"Live · {link}" : "Starting video…", Res("SystemFillColorSuccessBrush")),
             Native.StateConnecting => ("Connecting…", Res("SystemFillColorCautionBrush")),
+            Native.StatePairing => ("Pairing…", Res("SystemFillColorCautionBrush")),
             Native.StateSearching => ("Searching…", Res("SystemFillColorCautionBrush")),
             _ => ("Not connected", Res("TextFillColorTertiaryBrush")),
         };
@@ -277,8 +278,15 @@ public partial class MainWindow : Window
             {
                 case Native.StateIdle:
                     OverlayIcon.Text = "";
-                    OverlayTitle.Text = "Not connected";
-                    OverlayText.Text = "Open the MobCam app on your phone, then click Connect or pick it from Phones nearby.";
+                    OverlayTitle.Text = s.Problem == Native.ProblemNone ? "Not connected" : "Couldn't connect";
+                    OverlayText.Text = s.Problem == Native.ProblemNone
+                        ? "Open the MobCam app on your phone, then click Connect or pick it from Phones nearby."
+                        : s.Message;
+                    break;
+                case Native.StatePairing:
+                    OverlayIcon.Text = ""; // lock
+                    OverlayTitle.Text = $"Pairing code  {s.PairingCode / 1000:000} {s.PairingCode % 1000:000}";
+                    OverlayText.Text = $"Check that {s.Peer} shows the same code, then tap Allow on the phone.";
                     break;
                 case Native.StateStreaming:
                     OverlayIcon.Text = "";
