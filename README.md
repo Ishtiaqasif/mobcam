@@ -84,7 +84,7 @@ that Windows Frame Server exposes to all apps. Details: [docs/protocol.md](docs/
 | [pc/source/](pc/source/) | `mobcam-source.dll`, the virtual camera loaded by Windows Frame Server. |
 | [pc/common/](pc/common/) | Shared PC code (shared-memory layout, NV12 scaling). |
 | [pc/installer/](pc/installer/) | Inno Setup script for the Windows installer. |
-| [docs/](docs/) | Protocol documentation and README images. |
+| [docs/](docs/) | [Protocol](docs/protocol.md) documentation and README images. |
 | [scripts/](scripts/) | Dev, release and icon scripts. |
 
 ## Development
@@ -137,6 +137,13 @@ updates signed with the same key.
   You can also type the phone's address (shown on the phone) in the PC app.
 - **USB not detected:** USB debugging on, prompt accepted, and a data cable (not charge-only).
 - Virtual camera log: `C:\ProgramData\MobCam\mobcam-source.log`.
+
+## Roadmap
+
+Planned work lives on GitHub: the pinned [🗺️ Roadmap issue](https://github.com/Ishtiaqasif/mobcam/issues/21)
+lists every item, [milestones](https://github.com/Ishtiaqasif/mobcam/milestones) group them into
+releases, and the [project board](https://github.com/users/Ishtiaqasif/projects) shows what is in
+progress. Ideas and questions go to [Discussions](https://github.com/Ishtiaqasif/mobcam/discussions).
 
 ## Contributing
 

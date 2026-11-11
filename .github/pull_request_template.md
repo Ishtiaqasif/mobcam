@@ -1,6 +1,8 @@
+Closes #<!-- issue number -->
+
 ## What and why
 
-<!-- What does this change, and why? Link the issue if there is one. -->
+<!-- What does this change, and why? -->
 
 ## How I tested it
 
@@ -8,5 +10,6 @@
 
 ## Checklist
 
+- [ ] Targets `dev` (not `main`, unless this is a release)
 - [ ] Phone ⇄ PC protocol unchanged, or both sides and `docs/protocol.md` updated
 - [ ] `CHANGELOG.md` updated for user-visible changes

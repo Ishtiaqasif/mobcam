@@ -19,14 +19,34 @@ npm run pc:run          # build and start the Windows app
 npm run phone:typecheck
 ```
 
+## Questions and ideas
+
+Use [Discussions](https://github.com/Ishtiaqasif/mobcam/discussions): **Q&A** for help,
+**Ideas** for suggestions (upvote the ones you want). Issues are for planned work and confirmed
+bugs.
+
+## How work is tracked
+
+- Every planned change is an **issue**; the pinned
+  [🗺️ Roadmap](https://github.com/Ishtiaqasif/mobcam/issues/21) lists them all, and big items
+  are split into sub-issues.
+- **Milestones** (`v1.1 Safe to share`, ...) group issues into releases.
+- **Labels**: `area: *` (phone, pc, protocol, ci, docs), `size: S/M/L`, `priority: *`, and
+  `needs-decision` for items whose open questions must be answered first.
+  `good first issue` marks easy starting points.
+- The **project board** shows the status of each issue (Todo → In progress → In review → Done).
+
 ## Branches
 
-- `main` is the released code. It is protected: changes land only through pull requests with a
+- `dev` is the **default branch** and where development happens. Branch off `dev`
+  (`feature/<issue>-<topic>`, `fix/<issue>-<topic>`) and open pull requests against `dev`.
+- `main` holds released code. It is protected: changes land only through pull requests with a
   passing CI, and every release is tagged from it (`v1.2.3`).
-- `dev` is where development happens. Branch off `dev` (e.g. `feature/zoom-slider`,
-  `fix/wifi-reconnect`) and open pull requests against `dev`.
-- To release, open a pull request from `dev` to `main`, merge it, then tag and publish
-  (see [Releasing](README.md#releasing)).
+- To release, open a pull request from `dev` to `main`, merge it with a merge commit, then tag
+  and publish (see [Releasing](README.md#releasing)).
+
+Put `Closes #<issue>` in the pull request description: merging into `dev` closes the issue and
+moves it to **Done** on the board.
 
 ## Pull requests
 

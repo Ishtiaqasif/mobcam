@@ -1,0 +1,18 @@
+# Categories for GitHub's auto-generated release notes ("Generate release notes" button or
+# `gh release create --generate-notes`), based on pull request labels.
+changelog:
+  exclude:
+    labels: [duplicate, invalid, wontfix, roadmap]
+  categories:
+    - title: 🔒 Security
+      labels: [security]
+    - title: ✨ Features
+      labels: [enhancement]
+    - title: 🐛 Fixes
+      labels: [bug]
+    - title: 📚 Documentation
+      labels: [documentation]
+    - title: 🧰 Maintenance
+      labels: [chore]
+    - title: Other changes
+      labels: ["*"]
