@@ -142,7 +142,7 @@ updates signed with the same key.
 
 Planned work lives on GitHub: the pinned [🗺️ Roadmap issue](https://github.com/Ishtiaqasif/mobcam/issues/21)
 lists every item, [milestones](https://github.com/Ishtiaqasif/mobcam/milestones) group them into
-releases, and the [project board](https://github.com/users/Ishtiaqasif/projects) shows what is in
+releases, and the [project board](https://github.com/users/Ishtiaqasif/projects/4) shows what is in
 progress. Ideas and questions go to [Discussions](https://github.com/Ishtiaqasif/mobcam/discussions).
 
 ## Contributing

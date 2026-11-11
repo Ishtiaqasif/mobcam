@@ -34,7 +34,7 @@ bugs.
 - **Labels**: `area: *` (phone, pc, protocol, ci, docs), `size: S/M/L`, `priority: *`, and
   `needs-decision` for items whose open questions must be answered first.
   `good first issue` marks easy starting points.
-- The **project board** shows the status of each issue (Todo → In progress → In review → Done).
+- The [**project board**](https://github.com/users/Ishtiaqasif/projects/4) shows the status of each issue (Todo → In progress → In review → Done).
 
 ## Branches
 
