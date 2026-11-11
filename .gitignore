@@ -1,0 +1,20 @@
+# MobCam monorepo. app/ keeps its own Expo .gitignore (node_modules, generated android/, ...).
+
+# PC: CMake + dotnet build output
+pc/build/
+pc/gui/bin/
+pc/gui/obj/
+*.user
+.vs/
+
+# Gradle output of the local native module (app/android itself is generated and ignored by app/.gitignore)
+app/modules/*/android/build/
+app/modules/*/android/.cxx/
+.gradle/
+
+# Release outputs (APK, installer)
+dist/
+
+# Editors / OS
+.DS_Store
+Thumbs.db

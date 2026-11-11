@@ -1,0 +1,18 @@
+{
+  "name": "mobcam",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Use an Android phone as a Windows webcam over USB or Wi-Fi",
+  "scripts": {
+    "phone": "pwsh -NoProfile -File scripts/phone.ps1",
+    "phone:install": "npm --prefix app install",
+    "phone:typecheck": "npm --prefix app run typecheck",
+    "pc:build": "pwsh -NoProfile -File pc/build.ps1",
+    "pc:run": "pwsh -NoProfile -File pc/build.ps1 -Run",
+    "pc:install-camera": "pwsh -NoProfile -Command \"./pc/build/bin/mobcam-cli.exe install\"",
+    "release:phone": "pwsh -NoProfile -File scripts/release-phone.ps1",
+    "release:pc": "pwsh -NoProfile -File scripts/release-pc.ps1",
+    "release": "npm run release:pc && npm run release:phone",
+    "icons": "pwsh -NoProfile -File scripts/make-icons.ps1"
+  }
+}

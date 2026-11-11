@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "MobCam",
+    "slug": "mobcam",
+    "version": "1.0.0",
+    "platforms": ["android"],
+    "orientation": "landscape",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0d0f12",
+    "android": {
+      "package": "com.mobcam.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#1F57D6",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    }
+  }
+}
