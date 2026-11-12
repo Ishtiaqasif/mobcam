@@ -49,9 +49,10 @@ target_compile_definitions(mobcam-cli PRIVATE MOBCAM_CORE_STATIC)
 target_link_libraries(mobcam-cli PRIVATE ${CORE_LIBS})
 
 # mobcam-tests.exe: unit tests (doctest, vendored in third_party/). Shared fixtures in
-# ../tests/fixtures are checked by the phone's tests too. Run: ctest --test-dir pc\build -C Release
+# ../tests/fixtures are checked by the phone's tests too. Run: .\build.ps1 -Test
+# Not part of the default build, so release builds and the CodeQL scan contain only shipped code.
 enable_testing()
-add_executable(mobcam-tests
+add_executable(mobcam-tests EXCLUDE_FROM_ALL
   tests/test_main.cpp
   tests/test_assembler.cpp
   tests/test_blitter.cpp

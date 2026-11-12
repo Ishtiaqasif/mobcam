@@ -24,6 +24,9 @@ if ($LASTEXITCODE -ne 0) { throw "app build failed" }
 
 Write-Host "`nBuilt into $root\build\bin" -ForegroundColor Green
 if ($Test) {
+  # mobcam-tests is excluded from the default build (CMakeLists.txt): build it on request only
+  & $cmake --build "$root\build" --config Release --target mobcam-tests
+  if ($LASTEXITCODE -ne 0) { throw "test build failed" }
   $ctest = Join-Path (Split-Path $cmake) 'ctest.exe'
   if (-not (Test-Path $ctest)) { $ctest = 'ctest' }
   & $ctest --test-dir "$root\build" -C Release --output-on-failure
