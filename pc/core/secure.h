@@ -3,6 +3,7 @@
 
 #include <winsock2.h>
 #include <windows.h>
+#include <bcrypt.h>
 
 #include <cstdint>
 #include <functional>
@@ -15,6 +16,49 @@ namespace mobcam {
 using Bytes = std::vector<uint8_t>;
 
 constexpr uint16_t kProtocolVersion = 2;
+
+// ---------------------------------------------------------------- protocol v2 building blocks
+// The deterministic parts of the key exchange and the record layer, used by SecureSession and
+// tested against tests/fixtures/protocol-v2.txt (pc/tests), which the phone is tested against too.
+namespace v2 {
+
+struct SessionKeys {
+  Bytes pcToPhone;
+  Bytes phoneToPc;
+  int code = 0;  // pairing code shown on both screens, 0..999999
+};
+
+// HKDF over the ECDH secret (X coordinate, big-endian) keyed with the transcript hash.
+SessionKeys DeriveKeys(const Bytes& transcriptHash, const Bytes& sharedSecret);
+
+// ECDH with a given key pair (tests): X coordinate of the shared point, big-endian; empty on error.
+Bytes Ecdh(const Bytes& privateScalar, const Bytes& publicPoint, const Bytes& peerPoint);
+
+// AES-256-GCM records: 4-byte big-endian length (also the AAD), then ciphertext and tag. The
+// nonce is the record counter, so each direction needs its own instance. Not thread-safe.
+class RecordCipher {
+ public:
+  RecordCipher() = default;
+  ~RecordCipher() { Clear(); }
+  RecordCipher(const RecordCipher&) = delete;
+  RecordCipher& operator=(const RecordCipher&) = delete;
+
+  bool Init(const Bytes& key);  // restarts the counter
+  void Clear();
+  bool ready() const { return key_ != nullptr; }
+
+  // Appends one whole record (header included) carrying type ‖ payload.
+  bool Seal(uint8_t type, const uint8_t* payload, size_t length, Bytes& record);
+  // sealed = the record after its header; plain = type ‖ payload. False if authentication fails.
+  bool Open(const uint8_t header[4], const uint8_t* sealed, size_t sealedLen, Bytes& plain);
+
+ private:
+  void Nonce(uint8_t nonce[12]);
+  BCRYPT_KEY_HANDLE key_ = nullptr;
+  uint64_t counter_ = 0;
+};
+
+}  // namespace v2
 
 // ---------------------------------------------------------------- trusted phones (per Windows user)
 

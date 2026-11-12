@@ -48,6 +48,23 @@ add_executable(mobcam-cli cli/main.cpp ${CORE_SOURCES})
 target_compile_definitions(mobcam-cli PRIVATE MOBCAM_CORE_STATIC)
 target_link_libraries(mobcam-cli PRIVATE ${CORE_LIBS})
 
+# mobcam-tests.exe: unit tests (doctest, vendored in third_party/). Shared fixtures in
+# ../tests/fixtures are checked by the phone's tests too. Run: ctest --test-dir pc\build -C Release
+enable_testing()
+add_executable(mobcam-tests
+  tests/test_main.cpp
+  tests/test_assembler.cpp
+  tests/test_blitter.cpp
+  tests/test_crypto.cpp
+  ${CORE_SOURCES}
+)
+target_compile_definitions(mobcam-tests PRIVATE MOBCAM_CORE_STATIC
+  MOBCAM_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../tests/fixtures")
+target_include_directories(mobcam-tests PRIVATE third_party/doctest core common)
+target_link_libraries(mobcam-tests PRIVATE ${CORE_LIBS})
+set_target_properties(mobcam-tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+add_test(NAME mobcam-tests COMMAND mobcam-tests)
+
 foreach(t mobcam-source mobcam-core mobcam-cli)
   set_target_properties(${t} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${BIN_DIR}"

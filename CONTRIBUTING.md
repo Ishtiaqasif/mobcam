@@ -17,6 +17,8 @@ Everything builds from the command line on Windows 11; see
 npm run phone           # debug build of the phone app on a USB-connected phone
 npm run pc:run          # build and start the Windows app
 npm run phone:typecheck
+npm run pc:test         # PC unit tests
+npm run phone:test      # phone unit tests (no phone needed)
 ```
 
 ## Questions and ideas
@@ -55,7 +57,11 @@ moves it to **Done** on the board.
 - The phone and the PC talk over the protocol in [docs/protocol.md](docs/protocol.md). If you
   change one side, update the other side and the document in the same pull request, and keep
   older peers working where you can.
-- CI must pass (PC build, phone typecheck and Android build).
+- CI must pass (PC build and tests, phone typecheck, tests and Android build). Run the tests
+  locally with `npm run pc:test` and `npm run phone:test`.
+- Changing the protocol bytes (SEI, handshake, records) on purpose? Update
+  `tests/fixtures/gen_fixtures.py`, regenerate with `python tests/fixtures/gen_fixtures.py`, and
+  commit the fixtures with both sides' changes.
 - Describe user-visible changes under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md). Don't
   change version numbers: the maintainer sets them with `npm run bump -- <version>` when
   releasing, and the release notes are taken from that section.
