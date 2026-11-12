@@ -6,6 +6,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-12
 ### Security
 - **Wi-Fi pairing and encryption** (protocol v2). Others on the same Wi-Fi can no longer watch the
   camera or control the phone. The first time a PC connects over Wi-Fi, both screens show a
@@ -41,5 +42,6 @@ First release.
 - Installer that sets up the app and the virtual camera in one step.
 - `mobcam-cli` command-line client.
 
-[Unreleased]: https://github.com/Ishtiaqasif/mobcam/compare/v1.0.0...dev
+[Unreleased]: https://github.com/Ishtiaqasif/mobcam/compare/v1.1.0...dev
+[1.1.0]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.0.0
