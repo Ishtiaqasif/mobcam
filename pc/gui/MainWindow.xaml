@@ -269,6 +269,8 @@
                         <CheckBox x:Name="AutoConnectBox" Content="Connect automatically when MobCam starts" Click="OnAppOptionClick" />
                         <CheckBox x:Name="StartupBox" Content="Start with Windows (in the tray)" Click="OnAppOptionClick" Margin="0,6,0,0" />
                         <CheckBox x:Name="TrayBox" Content="Keep running in the tray when closed" Click="OnAppOptionClick" Margin="0,6,0,0" />
+                        <TextBlock x:Name="VersionText" Style="{StaticResource Caption}" Margin="0,12,0,0" />
+
                     </StackPanel>
                 </Border>
 

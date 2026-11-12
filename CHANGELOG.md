@@ -18,6 +18,11 @@ uses [Semantic Versioning](https://semver.org/).
 - Phone and PC apps from before this change can't connect to each other; both tell you to update.
 - Raw testing with `ffplay tcp://<phone>:5000` no longer works.
 
+### Added
+- Both apps show their version and the git commit they were built from (phone: bottom of the
+  panel; Windows app: title bar and the App card), marked "modified" for builds with uncommitted
+  changes, so you can tell exactly which build is running.
+
 ## [1.0.0] - 2026-11-12
 
 First release.

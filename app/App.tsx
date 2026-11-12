@@ -1,4 +1,5 @@
 import { useEvent } from 'expo';
+import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -149,6 +150,8 @@ function Streaming() {
         {status.notice ? <Text style={styles.notice}>{status.notice}</Text> : null}
 
         <PairedPcsButton />
+
+        <Text style={styles.version}>{versionLabel()}</Text>
       </ScrollView>
 
       <PairingPrompt />
@@ -258,6 +261,16 @@ function PairedPcsButton() {
   );
 }
 
+/** "MobCam 1.0.0 (1) · e964e90", plus "· modified" for builds with uncommitted changes. */
+function versionLabel(): string {
+  const config = Constants.expoConfig;
+  const extra = (config?.extra ?? {}) as { commit?: string; modified?: boolean };
+  const parts = [`MobCam ${config?.version ?? '?'} (${config?.android?.versionCode ?? '?'})`];
+  if (extra.commit) parts.push(extra.commit);
+  if (extra.modified) parts.push('modified');
+  return parts.join(' · ');
+}
+
 function ConnectionLine({ status }: { status: MobcamStatus }) {
   let color = '#8a8f98';
   let text = 'Waiting for PC…';
@@ -319,6 +332,7 @@ const styles = StyleSheet.create({
   mono: { color: '#e6e8eb', fontSize: 16, fontFamily: 'monospace' },
   muted: { color: '#8a8f98', fontSize: 14 },
   hint: { color: '#5f646c', fontSize: 12, marginTop: 4 },
+  version: { color: '#5f646c', fontSize: 11 },
   connection: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   connectionText: { color: '#e6e8eb', fontSize: 15 },
