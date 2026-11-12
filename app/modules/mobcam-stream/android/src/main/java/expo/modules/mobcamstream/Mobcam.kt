@@ -1,6 +1,7 @@
 package expo.modules.mobcamstream
 
 import android.content.Context
+import android.os.Build
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
@@ -8,6 +9,9 @@ import java.net.NetworkInterface
 object Mobcam {
   const val STREAM_PORT = 5000
   const val DISCOVERY_PORT = 5001
+
+  /** "OnePlus CPH2747": shown to PCs in discovery and during pairing. */
+  val deviceName: String get() = "${Build.MANUFACTURER} ${Build.MODEL}"
 
   @Volatile private var engine: StreamEngine? = null
 

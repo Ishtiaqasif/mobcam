@@ -30,6 +30,8 @@ export type MobcamStatus = {
   width: number;
   height: number;
   error: string | null;
+  /** Non-fatal message, e.g. an outdated PC tried to connect. */
+  notice: string | null;
   clients: number;
   usbClients: number;
   wifiClients: number;
@@ -38,8 +40,28 @@ export type MobcamStatus = {
   port: number;
 };
 
+/** An unpaired PC on Wi-Fi asks to use the camera. Both screens show `code`. */
+export type PairingRequest = {
+  id: number;
+  pcName: string;
+  /** "482 913" */
+  code: string;
+};
+
+export type PairedPc = {
+  /** SHA-256 of the PC's identity key, hex. */
+  id: string;
+  name: string;
+  /** ms since epoch */
+  pairedAt: number;
+};
+
 type MobcamEvents = {
   onStatus: (status: MobcamStatus) => void;
+  onPairingRequest: (request: PairingRequest) => void;
+  /** The prompt was answered, timed out, or the PC went away. */
+  onPairingClosed: (event: { id: number }) => void;
+  onPairedPcsChanged: () => void;
 };
 
 declare class MobcamStreamModule extends NativeModule<MobcamEvents> {
@@ -48,6 +70,10 @@ declare class MobcamStreamModule extends NativeModule<MobcamEvents> {
   selectLens(index: number): void;
   setResolution(height: number): void;
   getStatus(): MobcamStatus;
+  respondPairing(id: number, allow: boolean): void;
+  getPendingPairing(): PairingRequest | null;
+  getPairedPcs(): PairedPc[];
+  forgetPc(id: string): void;
 }
 
 export const MobcamStream = requireNativeModule<MobcamStreamModule>('MobcamStream');

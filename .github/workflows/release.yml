@@ -1,0 +1,172 @@
+name: Release
+
+# Builds, signs and publishes a release when a version tag is pushed:
+#   git tag v1.1.0 && git push origin v1.1.0
+# The tag must point at a commit on main, match the version in the code
+# (scripts/bump-version.ps1) and have a CHANGELOG.md section. Tags with a "-" suffix
+# (v1.2.0-rc.1) are published as pre-releases.
+#
+# "Run workflow" (manual) builds the same signed APK and installer from the chosen branch and
+# attaches them to the run as artifacts, without publishing anything: test builds / dry run.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check tag and version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Tag is on main
+        if: github.event_name == 'push'
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::$GITHUB_REF_NAME is not on main. Merge dev into main first, then tag main."
+            exit 1
+          }
+      - name: Version (tag must match the code and the changelog)
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'push') {
+            ./scripts/check-versions.ps1 -Tag "$env:GITHUB_REF_NAME"
+            $v = $env:GITHUB_REF_NAME.Substring(1)
+          } else {
+            ./scripts/check-versions.ps1
+            $v = [regex]::Match((Get-Content pc/gui/MobCam.csproj -Raw), '<Version>([^<]+)</Version>').Groups[1].Value
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+  windows:
+    name: Windows installer
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Build installer
+        shell: pwsh
+        run: ./scripts/release-pc.ps1
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows
+          path: dist/MobCam-Setup-${{ needs.check.outputs.version }}.exe
+          if-no-files-found: error
+
+  android:
+    name: Android APK
+    needs: check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - name: Restore the signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "::error::Secret ANDROID_KEYSTORE_BASE64 is not set"; exit 1; fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/mobcam-release.jks"
+      - name: Generate native project
+        run: npx expo prebuild --platform android --no-install
+        env:
+          CI: '1'
+      - name: Build signed APK
+        working-directory: app/android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease --console=plain \
+            -PreactNativeArchitectures=arm64-v8a \
+            "-Pandroid.injected.signing.store.file=$RUNNER_TEMP/mobcam-release.jks" \
+            "-Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias=mobcam \
+            "-Pandroid.injected.signing.key.password=$KEYSTORE_PASSWORD"
+      - name: Name the APK
+        run: |
+          mkdir -p ../dist
+          cp android/app/build/outputs/apk/release/app-release.apk "../dist/MobCam-${{ needs.check.outputs.version }}.apk"
+      - name: Remove the signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mobcam-release.jks"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: android
+          path: dist/MobCam-${{ needs.check.outputs.version }}.apk
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    needs: [check, windows, android]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum MobCam-* > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Release notes from CHANGELOG.md
+        run: |
+          {
+            echo "## Downloads"
+            echo ""
+            echo "| | File | Requirements |"
+            echo "|---|---|---|"
+            echo "| 🖥️ Windows | **MobCam-Setup-$VERSION.exe** | Windows 11 x64 (.NET runtime included) |"
+            echo "| 📱 Android | **MobCam-$VERSION.apk** | Android 7.0+ (arm64) |"
+            echo ""
+            echo "Verify downloads against \`SHA256SUMS.txt\`. Setup instructions: [README](https://github.com/${GITHUB_REPOSITORY}#download)."
+            echo ""
+            awk -v v="$VERSION" '
+              index($0, "## [" v "]") == 1 { grab = 1; next }
+              grab && /^## \[/ { exit }
+              grab && /^\[[^]]+\]: / { exit }
+              grab { print }
+            ' CHANGELOG.md
+          } > notes.md
+          cat notes.md
+      - name: Create the release
+        run: |
+          flags=()
+          if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "MobCam $VERSION" --notes-file notes.md --verify-tag "${flags[@]}"

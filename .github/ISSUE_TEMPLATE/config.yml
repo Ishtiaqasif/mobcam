@@ -1,1 +1,11 @@
 blank_issues_enabled: false
+contact_links:
+  - name: ❓ Question or help with setup
+    url: https://github.com/Ishtiaqasif/mobcam/discussions/categories/q-a
+    about: Ask in Discussions → Q&A (phone not found, camera not showing up, ...)
+  - name: 💡 Idea
+    url: https://github.com/Ishtiaqasif/mobcam/discussions/categories/ideas
+    about: Suggest and vote on ideas in Discussions → Ideas
+  - name: 🗺️ Roadmap
+    url: https://github.com/Ishtiaqasif/mobcam/issues/21
+    about: What's planned and in progress

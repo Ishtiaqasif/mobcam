@@ -34,8 +34,9 @@ set(CORE_SOURCES
   core/frame_writer.cpp
   core/install.cpp
   core/net.cpp
+  core/secure.cpp
 )
-set(CORE_LIBS mfplat mfuuid mf mfsensorgroup wmcodecdspuuid ole32 advapi32 shell32 ws2_32 iphlpapi)
+set(CORE_LIBS mfplat mfuuid mf mfsensorgroup wmcodecdspuuid ole32 advapi32 shell32 ws2_32 iphlpapi bcrypt ncrypt)
 
 # mobcam-core.dll: C API used by the WPF app through P/Invoke
 add_library(mobcam-core SHARED ${CORE_SOURCES})
