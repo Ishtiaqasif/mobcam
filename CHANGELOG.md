@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- **About** in both apps (phone: below *Paired PCs*; Windows app: the App card): version, a
+  short privacy summary, links to the project and the privacy statement, and the licences of the
+  third-party software MobCam includes. The installer and the APK now ship
+  `THIRD-PARTY-NOTICES.txt`.
 
 ## [1.1.0] - 2026-11-12
 ### Security

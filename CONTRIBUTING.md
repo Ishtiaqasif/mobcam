@@ -55,7 +55,10 @@ moves it to **Done** on the board.
 - The phone and the PC talk over the protocol in [docs/protocol.md](docs/protocol.md). If you
   change one side, update the other side and the document in the same pull request, and keep
   older peers working where you can.
-- CI must pass (PC build, phone typecheck and Android build).
+- CI must pass (PC build, phone typecheck, third-party notices and Android build).
+- New dependencies need a licence compatible with MIT. Their notices are collected
+  automatically by `scripts/notices.ps1`; if CI says it can't place an Android library's
+  licence, add the text to `scripts/licenses/` and the table in the script.
 - Describe user-visible changes under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md). Don't
   change version numbers: the maintainer sets them with `npm run bump -- <version>` when
   releasing, and the release notes are taken from that section.
