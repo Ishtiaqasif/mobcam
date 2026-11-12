@@ -13,6 +13,8 @@
     "release:phone": "pwsh -NoProfile -File scripts/release-phone.ps1",
     "release:pc": "pwsh -NoProfile -File scripts/release-pc.ps1",
     "release": "npm run release:pc && npm run release:phone",
-    "icons": "pwsh -NoProfile -File scripts/make-icons.ps1"
+    "icons": "pwsh -NoProfile -File scripts/make-icons.ps1",
+    "bump": "pwsh -NoProfile -File scripts/bump-version.ps1",
+    "check-versions": "pwsh -NoProfile -File scripts/check-versions.ps1"
   }
 }

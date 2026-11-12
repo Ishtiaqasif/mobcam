@@ -56,6 +56,9 @@ moves it to **Done** on the board.
   change one side, update the other side and the document in the same pull request, and keep
   older peers working where you can.
 - CI must pass (PC build, phone typecheck and Android build).
+- Describe user-visible changes under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md). Don't
+  change version numbers: the maintainer sets them with `npm run bump -- <version>` when
+  releasing, and the release notes are taken from that section.
 - Match the style of the surrounding code; comments explain *why*, not *what*.
 
 By contributing you agree that your contributions are licensed under the [MIT License](LICENSE).

@@ -21,6 +21,9 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+      - name: PC and phone versions match
+        shell: pwsh
+        run: ./scripts/check-versions.ps1
       - name: Build engine, virtual camera, CLI and app
         shell: pwsh
         run: ./pc/build.ps1
