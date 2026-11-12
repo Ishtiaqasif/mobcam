@@ -181,7 +181,9 @@ progress. Ideas and questions go to [Discussions](https://github.com/Ishtiaqasif
 
 ## Contributing
 
-Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md). Found a security problem? Please report it privately
+([SECURITY.md](SECURITY.md)).
 
 ## License
 
