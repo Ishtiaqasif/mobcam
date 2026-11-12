@@ -26,6 +26,7 @@ enum : uint8_t {
   kMsgDenied = 0x07,
   kRecVideo = 0x10,
   kRecCommand = 0x11,
+  kRecPaired = 0x12,  // PC -> phone: this PC's user confirmed the pairing code too
 };
 
 constexpr size_t kKeyLen = 65, kSigLen = 64, kNonceLen = 32, kMaxName = 64;
@@ -33,6 +34,8 @@ constexpr uint32_t kMaxMessage = 1024;
 constexpr uint32_t kMaxRecord = 4 * 1024 * 1024;
 constexpr DWORD kStepTimeoutMs = 10000;
 constexpr DWORD kPairingTimeoutMs = 70000;
+// After the phone's Allow, the phone waits 65 s for PAIRED; leave a margin for sending it.
+constexpr int kUserConfirmTimeoutMs = 60000;
 constexpr DWORD kStreamTimeoutMs = 3000;  // same as ConnectTcp: detects a stalled phone
 
 const wchar_t kIdentityKeyName[] = L"MobCam PC identity v1";
@@ -397,6 +400,20 @@ struct SecureSession::Impl {
   Gcm send, recv;
   Bytes pending;  // received bytes not yet forming a whole record
   Bytes plain;
+
+  // Encrypts and sends one record. Caller holds sendMu.
+  bool SendRecordLocked(uint8_t type, const uint8_t* payload, size_t length) {
+    if (socket == INVALID_SOCKET || !send.ready()) return false;
+    Bytes p;
+    p.reserve(1 + length);
+    p.push_back(type);
+    p.insert(p.end(), payload, payload + length);
+    Bytes record;
+    PutU32(record, uint32_t(p.size() + 16));
+    record.resize(4 + p.size() + 16);
+    if (!send.Seal(record.data(), p, record.data() + 4)) return false;
+    return SendAll(socket, record.data(), record.size());
+  }
 };
 
 SecureSession::SecureSession() : impl_(new Impl) {}
@@ -410,8 +427,7 @@ void SecureSession::Reset() {
   impl_->pending.clear();
 }
 
-HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const std::function<void(int)>& onPairing,
-                                         HandshakeInfo* info) {
+HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const PairingHooks& hooks, HandshakeInfo* info) {
   Reset();
   HandshakeInfo local;
   HandshakeInfo& out = info ? *info : local;
@@ -532,7 +548,7 @@ HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const std::function
   bool pairing = false;
   if (type == kMsgPairing) {
     pairing = true;
-    if (onPairing) onPairing(code);
+    if (hooks.onPairing) hooks.onPairing(code);
     SetTimeout(s, kPairingTimeoutMs);
     type = readMessage(body, false);
   }
@@ -544,9 +560,12 @@ HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const std::function
   const Bytes phoneAuthLabel = Str("MOBCAM v2 phone auth");
   if (!VerifyEcdsa(phoneKey.data(), Cat({&phoneAuthLabel, &h}), body.data())) return fail("the phone's signature is invalid");
 
-  // Trust.
+  // Trust. A new phone needs this PC's user to confirm the same code too: otherwise any device on
+  // the network that answers discovery could pair itself with this PC and feed it video.
   if (!usb) {
     if (pairing) {
+      if (hooks.onPhoneAllowed) hooks.onPhoneAllowed();
+      if (!hooks.waitForUser || !hooks.waitForUser(kUserConfirmTimeoutMs)) return HandshakeResult::Cancelled;
       AddPaired(phoneKey, phoneName);
       out.newlyPaired = true;
     } else if (!IsPaired(phoneKey)) {
@@ -558,6 +577,8 @@ HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const std::function
   std::lock_guard<std::mutex> g(impl_->sendMu);
   if (!impl_->send.Init(kSend) || !impl_->recv.Init(kRecv)) return fail("cannot set up encryption");
   impl_->socket = s;
+  // Tells the phone both users confirmed; it remembers this PC and starts the video only then.
+  if (out.newlyPaired && !impl_->SendRecordLocked(kRecPaired, nullptr, 0)) return fail("connection lost");
   return HandshakeResult::Ok;
 }
 
@@ -581,15 +602,7 @@ bool SecureSession::Receive(const uint8_t* data, size_t length, const std::funct
 
 bool SecureSession::SendCommand(const std::string& command) {
   std::lock_guard<std::mutex> g(impl_->sendMu);
-  if (impl_->socket == INVALID_SOCKET || !impl_->send.ready()) return false;
-  Bytes plain;
-  plain.push_back(kRecCommand);
-  plain.insert(plain.end(), command.begin(), command.end());
-  Bytes record;
-  PutU32(record, uint32_t(plain.size() + 16));
-  record.resize(4 + plain.size() + 16);
-  if (!impl_->send.Seal(record.data(), plain, record.data() + 4)) return false;
-  return SendAll(impl_->socket, record.data(), record.size());
+  return impl_->SendRecordLocked(kRecCommand, reinterpret_cast<const uint8_t*>(command.data()), command.size());
 }
 
 }  // namespace mobcam

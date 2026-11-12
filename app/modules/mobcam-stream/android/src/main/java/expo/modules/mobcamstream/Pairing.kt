@@ -50,6 +50,9 @@ class PairedPcStore(context: Context) {
   }.sortedByDescending { it.pairedAt }
 }
 
+/** Where a two-sided pairing stands after this phone's user tapped Allow. */
+enum class PairingStage { WAITING_FOR_PC, PAIRED, CANCELLED }
+
 /** A pairing question waiting for the user's answer. */
 class PairingRequest(val id: Int, val pc: PcHello, val code: String) {
   internal val answer = AtomicReference<Boolean?>(null)
@@ -86,8 +89,9 @@ class PairingBroker(
       while (true) {
         request.answer.get()?.let { allowed ->
           if (!allowed) return Proto.DENIED_BY_USER
-          store.add(pc)
-          onPairedChanged()
+          // Two-sided pairing: the PC is trusted only once its user confirmed the code too
+          // (Proto.REC_PAIRED, handled by the stream server, which then calls confirm()).
+          channel.pendingPairing = true
           return null
         }
         if (System.currentTimeMillis() >= deadline) return Proto.DENIED_TIMEOUT
@@ -98,6 +102,12 @@ class PairingBroker(
       current.compareAndSet(request, null)
       onPromptClosed(request)
     }
+  }
+
+  /** Both users confirmed the code: remember the PC. */
+  fun confirm(pc: PcHello) {
+    store.add(pc)
+    onPairedChanged()
   }
 
   /** Called from the UI. Ignored if [id] is not the open prompt. */

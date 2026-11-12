@@ -62,6 +62,17 @@ class MobcamStreamModule : Module() {
             }
             emitStatus()
           },
+          onPairing = { pc, stage ->
+            when (stage) {
+              PairingStage.WAITING_FOR_PC -> notice = "Now confirm the code on ${pc.name} to finish pairing."
+              PairingStage.PAIRED -> {
+                gate.confirm(pc)
+                notice = null
+              }
+              PairingStage.CANCELLED -> notice = "Pairing with ${pc.name} was not confirmed on the PC. Nothing was saved."
+            }
+            emitStatus()
+          },
         ).also { it.start() }
         discovery = DiscoveryResponder(ctx, Mobcam.DISCOVERY_PORT, Mobcam.STREAM_PORT).also { it.start() }
       }

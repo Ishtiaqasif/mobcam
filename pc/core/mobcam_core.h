@@ -40,6 +40,16 @@ enum mc_problem {
   MC_PROBLEM_PAIRING_TIMEOUT = 4,/* nobody answered the phone's prompt (engine stops retrying) */
   MC_PROBLEM_NOT_PAIRED = 5,     /* phone trusts this PC but this PC forgot the phone (stops) */
   MC_PROBLEM_AUTH_FAILED = 6,    /* bad signature / handshake error (keeps retrying) */
+  MC_PROBLEM_CANCELLED = 7,      /* this PC's user cancelled pairing or didn't confirm in time (stops) */
+};
+
+/* While state == MC_STATE_PAIRING: what is still missing. Pairing needs both users to confirm
+ * the same code: Allow on the phone, mc_confirm_pairing(1) on the PC (either order). */
+enum mc_pairing_stage {
+  MC_PAIRING_NONE = 0,
+  MC_PAIRING_CONFIRM = 1,    /* show pairing_code; ask this PC's user, the phone is asking too */
+  MC_PAIRING_WAIT_PHONE = 2, /* this PC's user confirmed; waiting for Allow on the phone */
+  MC_PAIRING_WAIT_USER = 3,  /* the phone allowed; waiting for this PC's user */
 };
 
 enum mc_vcam {
@@ -69,6 +79,7 @@ typedef struct mc_status {
   wchar_t message[256];        /* human readable status or last error */
   int32_t pairing_code;        /* 0..999999 while state == MC_STATE_PAIRING, else -1 */
   int32_t problem;             /* mc_problem */
+  int32_t pairing_stage;       /* mc_pairing_stage */
 } mc_status;
 
 typedef struct mc_paired_phone {
@@ -119,6 +130,10 @@ MC_API int32_t mc_get_lenses(mc_lens* lenses, int32_t max_lenses);
 /* Phone remote control: "SWITCH", "FACING front|back", "LENS <index>", "RES 480|720|1080".
  * Returns 1 if sent. */
 MC_API int32_t mc_phone_command(const char* command);
+
+/* Answers the pairing question while state == MC_STATE_PAIRING: 1 = the phone shows the same
+ * code, 0 = cancel (ends the attempt). */
+MC_API void mc_confirm_pairing(int32_t accept);
 
 /* Phones paired with this Windows user over Wi-Fi (USB needs no pairing). Returns the count. */
 MC_API int32_t mc_get_paired_phones(mc_paired_phone* phones, int32_t max_phones);

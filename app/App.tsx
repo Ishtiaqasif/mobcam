@@ -76,7 +76,8 @@ function Streaming() {
         {area.width > 0 && <MobcamPreview style={fitted} />}
       </View>
 
-      <View style={styles.panel}>
+      {/* Scrolls on short screens so notices and Paired PCs below the lenses stay reachable. */}
+      <ScrollView style={styles.panelScroll} contentContainerStyle={styles.panel}>
         <Text style={styles.title}>MobCam</Text>
 
         <ConnectionLine status={status} />
@@ -148,7 +149,7 @@ function Streaming() {
         {status.notice ? <Text style={styles.notice}>{status.notice}</Text> : null}
 
         <PairedPcsButton />
-      </View>
+      </ScrollView>
 
       <PairingPrompt />
     </View>
@@ -183,7 +184,9 @@ function PairingPrompt() {
           <Text style={styles.dialogTitle}>Allow {request.pcName} to use the camera?</Text>
           <Text style={styles.muted}>Check that your PC shows the same code:</Text>
           <Text style={styles.code}>{request.code}</Text>
-          <Text style={styles.hint}>Only allow PCs you own. You can remove it later under Paired PCs.</Text>
+          <Text style={styles.hint}>
+            Only allow PCs you own. The PC asks you to confirm the code too. You can remove it later under Paired PCs.
+          </Text>
           <View style={styles.dialogButtons}>
             <Pressable style={[styles.dialogButton, styles.denyButton]} onPress={() => answer(false)}>
               <Text style={styles.switchText}>Deny</Text>
@@ -241,9 +244,12 @@ function PairedPcsButton() {
                   ))
                 )}
               </ScrollView>
-              <Pressable style={styles.dialogButton} onPress={() => setOpen(false)}>
-                <Text style={styles.switchText}>Done</Text>
-              </Pressable>
+              {/* In a row like Allow/Deny: dialogButton's flex: 1 would collapse it in the column. */}
+              <View style={styles.dialogButtons}>
+                <Pressable style={styles.dialogButton} onPress={() => setOpen(false)}>
+                  <Text style={styles.switchText}>Done</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         </Modal>
@@ -301,12 +307,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  panelScroll: { width: 280, flexGrow: 0, backgroundColor: '#15181d' },
   panel: {
-    width: 280,
     paddingHorizontal: 20,
     paddingVertical: 16,
     gap: 18,
-    backgroundColor: '#15181d',
   },
   title: { color: '#fff', fontSize: 22, fontWeight: '700' },
   block: { gap: 4 },

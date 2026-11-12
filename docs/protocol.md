@@ -98,15 +98,41 @@ The phone ends the connection if the PC's preamble, COMMIT, REVEAL or PC_AUTH do
 within 10 s. While its prompt is open it watches the socket and closes the prompt if the PC goes
 away. The PC allows up to 70 s for PHONE_AUTH after PAIRING and 10 s otherwise.
 
+### Two-sided pairing
+
+Pairing is a numeric comparison on **both** devices, like Bluetooth: the phone's user taps
+*Allow* and the PC's user confirms *Codes match*, in either order. Without the PC-side check, any
+device on the network that answers discovery could pair itself with the PC and feed it video.
+
+```
+PC                                                     Phone
+ │ ◀────────────────────────────── PAIRING             │  both show the code
+ │   PC user: "Codes match" (any time)                 │  phone user: Allow
+ │ ◀────────────────────────────── PHONE_AUTH          │
+ │   PC waits for its user (up to 60 s), then trusts   │
+ │   the phone                                         │
+ │ ══ PAIRED record 0x12 (empty, encrypted) ═════════▶ │  phone trusts the PC, starts video
+```
+
+- After sending PHONE_AUTH for a new PC, the phone sends **no video** and ignores commands until
+  the PAIRED record arrives (65 s timeout). Only then does it add the PC to its paired list.
+- If the PC's user taps *Cancel*, or doesn't confirm within 60 s of PHONE_AUTH, the PC closes the
+  connection without sending PAIRED. Neither side saves anything; the phone shows "Pairing with
+  PC-NAME was not confirmed on the PC".
+- PAIRED is the first record the PC sends on such a connection. Being encrypted with
+  `kPcToPhone`, only the PC that took part in this handshake can produce it.
+
 ### Trust
 
 - **Phone:** keeps a list of paired PCs (identity key, name, paired time) in app storage and shows
   it with *Forget*. A Wi-Fi connection from a PC that is not listed shows *"Allow PC-NAME to use
-  the camera? Code 482 913"*. *Allow* adds the PC to the list. Loopback (USB) connections are
-  accepted without a prompt and are **not** added to the list.
+  the camera? Code 482 913"*. The PC is added to the list once the user tapped *Allow* **and** the
+  PC's PAIRED record arrived. Loopback (USB) connections are accepted without a prompt and are
+  **not** added to the list.
 - **PC:** keeps trusted phones per Windows user under `HKCU\Software\MobCam\PairedPhones` (value
   name = hex SHA-256 of the phone's identity key, data = key ‖ name). After a valid PHONE_AUTH that
-  followed a PAIRING message the PC adds the phone to the list. Over USB (and for a hand-typed
+  followed a PAIRING message, and once its own user confirmed the code, the PC adds the phone to
+  the list and sends PAIRED. Over USB (and for a hand-typed
   `127.0.0.1`, which can only be an `adb forward`) it accepts any valid PHONE_AUTH. On Wi-Fi, a phone that sends PHONE_AUTH without a prompt must already be listed,
   otherwise the PC closes the connection with "phone not paired" (the phone remembered this PC but
   the PC forgot the phone: forget the PC on the phone and pair again).
@@ -130,6 +156,7 @@ The plaintext of a record is `type u8 ‖ payload`:
 |---|---|---|
 | `0x10` VIDEO | phone → PC | one encoded frame, laid out as in [Video frames](#video-frames) |
 | `0x11` COMMAND | PC → phone | one [command](#commands--pc--phone) as ASCII, no line break |
+| `0x12` PAIRED | PC → phone | empty; the PC's user confirmed the pairing code ([two-sided pairing](#two-sided-pairing)) |
 
 ### Versions
 

@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <mutex>
 #include <thread>
 
@@ -98,12 +100,32 @@ class Engine {
 
   void Disconnect() {
     stop_ = true;
+    pairCv_.notify_all();  // a handshake waiting for the user's pairing answer gives up
     CloseSocket();
     if (worker_.joinable()) worker_.join();
     std::lock_guard<std::mutex> g(statusMu_);
     ResetStreamStatus();
     status_.state = MC_STATE_IDLE;
     Copy(status_.message, 256, L"Disconnected");
+  }
+
+  // This PC's user answered the pairing question (see PairingHooks).
+  void ConfirmPairing(bool accept) {
+    {
+      std::lock_guard<std::mutex> g(statusMu_);
+      if (status_.state != MC_STATE_PAIRING) return;
+      if (accept && status_.pairing_stage == MC_PAIRING_CONFIRM) {
+        status_.pairing_stage = MC_PAIRING_WAIT_PHONE;
+        Copy(status_.message, 256, L"Now tap Allow on the phone to finish pairing.");
+      }
+    }
+    {
+      std::lock_guard<std::mutex> g(pairMu_);
+      pairDecision_ = accept ? 1 : 0;
+    }
+    pairCv_.notify_all();
+    // Cancel: drop the connection now; the phone closes its prompt when the PC goes away.
+    if (!accept) CloseSocket();
   }
 
   void GetStatus(mc_status* out) {
@@ -241,6 +263,7 @@ class Engine {
     lenses_.clear();
     status_.peer[0] = 0;
     status_.pairing_code = -1;
+    status_.pairing_stage = MC_PAIRING_NONE;
   }
 
   // Like SetState, but keeps the message of an unresolved problem (e.g. "update the phone app")
@@ -256,6 +279,7 @@ class Engine {
     status_.state = state;
     status_.problem = problem;
     status_.pairing_code = -1;
+    status_.pairing_stage = MC_PAIRING_NONE;
     Copy(status_.message, 256, message);
   }
 
@@ -264,19 +288,50 @@ class Engine {
   bool Authenticate(SOCKET s, int usedLink, const std::wstring& peer, bool* retry) {
     *retry = true;
     HandshakeInfo info;
-    const HandshakeResult r = session_.Handshake(s, usedLink == MC_LINK_USB, [&](int code) {
+    {
+      std::lock_guard<std::mutex> g(pairMu_);
+      pairDecision_ = -1;
+    }
+    PairingHooks hooks;
+    hooks.onPairing = [&](int code) {
       wchar_t text[256];
-      swprintf_s(text, L"Pairing: check that %s shows %03d %03d and tap Allow", peer.c_str(), code / 1000, code % 1000);
+      swprintf_s(text, L"Pairing: if %s shows %03d %03d, confirm here and tap Allow on the phone", peer.c_str(),
+                 code / 1000, code % 1000);
       std::lock_guard<std::mutex> g(statusMu_);
       status_.state = MC_STATE_PAIRING;
       status_.pairing_code = code;
+      status_.pairing_stage = MC_PAIRING_CONFIRM;
       Copy(status_.peer, 128, peer);
       Copy(status_.message, 256, text);
-    }, &info);
+    };
+    hooks.onPhoneAllowed = [&] {
+      std::lock_guard<std::mutex> g(statusMu_);
+      if (status_.pairing_stage == MC_PAIRING_CONFIRM) {
+        status_.pairing_stage = MC_PAIRING_WAIT_USER;
+        Copy(status_.message, 256, L"The phone allowed the connection. Confirm the code here to finish pairing.");
+      }
+    };
+    hooks.waitForUser = [&](int timeoutMs) {
+      std::unique_lock<std::mutex> lock(pairMu_);
+      pairCv_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&] { return pairDecision_ != -1 || stop_; });
+      return pairDecision_ == 1 && !stop_;
+    };
+    const HandshakeResult r = session_.Handshake(s, usedLink == MC_LINK_USB, hooks, &info);
     if (stop_) return false;
+    int decision;
+    {
+      std::lock_guard<std::mutex> g(pairMu_);
+      decision = pairDecision_;
+    }
     switch (r) {
       case HandshakeResult::Ok:
         return true;
+      case HandshakeResult::Cancelled:
+        *retry = false;
+        SetProblem(MC_STATE_IDLE, MC_PROBLEM_CANCELLED,
+                   decision == 0 ? L"Pairing cancelled. Nothing was saved on the PC or the phone."
+                                 : L"Pairing wasn't confirmed on this PC in time. Connect again to retry.");
+        return false;
       case HandshakeResult::PhoneTooOld:
         SetProblem(MC_STATE_SEARCHING, MC_PROBLEM_PHONE_TOO_OLD,
                    L"The MobCam app on your phone is too old. Update it to connect.");
@@ -310,6 +365,11 @@ class Engine {
         }
       case HandshakeResult::Failed:
       default: {
+        if (decision == 0) {  // the user cancelled while the phone was still asking (socket closed)
+          *retry = false;
+          SetProblem(MC_STATE_IDLE, MC_PROBLEM_CANCELLED, L"Pairing cancelled. Nothing was saved on the PC or the phone.");
+          return false;
+        }
         // A timeout while the phone was asking means nobody answered.
         int wasPairing = 0;
         {
@@ -539,6 +599,10 @@ class Engine {
   std::atomic<SOCKET> socket_{INVALID_SOCKET};
   SecureSession session_;
   std::mutex statusMu_;
+  // This PC user's answer to the pairing question: -1 none yet, 0 cancel, 1 codes match.
+  std::mutex pairMu_;
+  std::condition_variable pairCv_;
+  int pairDecision_ = -1;
   mc_status status_{};
   std::vector<PhoneLens> lenses_;  // guarded by statusMu_
 
@@ -626,5 +690,7 @@ MC_API int32_t mc_get_paired_phones(mc_paired_phone* phones, int32_t max_phones)
 }
 
 MC_API int32_t mc_forget_phone(const wchar_t* id) { return id && mobcam::ForgetPairedPhone(id) ? 1 : 0; }
+
+MC_API void mc_confirm_pairing(int32_t accept) { Engine::Get().ConfirmPairing(accept != 0); }
 
 }  // extern "C"

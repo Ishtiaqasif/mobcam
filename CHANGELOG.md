@@ -9,8 +9,10 @@ uses [Semantic Versioning](https://semver.org/).
 ### Security
 - **Wi-Fi pairing and encryption** (protocol v2). Others on the same Wi-Fi can no longer watch the
   camera or control the phone. The first time a PC connects over Wi-Fi, both screens show a
-  6-digit code and the phone asks *Allow / Deny*. After that the PC reconnects without asking.
-  Video and commands are encrypted (AES-256-GCM) on Wi-Fi and USB alike; USB never asks.
+  6-digit code: tap *Allow* on the phone and *Codes match* on the PC (or `y` in `mobcam-cli`).
+  Both sides must confirm, so a rogue device on the network can't pair itself with your PC either.
+  After that the PC reconnects without asking. Video and commands are encrypted (AES-256-GCM) on
+  Wi-Fi and USB alike; USB never asks.
 - The phone app has a **Paired PCs** list with *Forget*.
 - Phone and PC apps from before this change can't connect to each other; both tell you to update.
 - Raw testing with `ffplay tcp://<phone>:5000` no longer works.

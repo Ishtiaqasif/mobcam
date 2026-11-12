@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private Native.Status _status;
     private long _previewSeq;
     private bool _wantConnected;
+    private int _status0State = Native.StateIdle; // state at the previous status update
     private bool _discovering;
     private bool _vcamBusy;
     private bool _shuttingDown;
@@ -109,6 +110,19 @@ public partial class MainWindow : Window
     }
 
     private void OnConnectClick(object sender, RoutedEventArgs e) => ToggleConnection();
+
+    // Two-sided pairing: this PC's user compares the code too.
+    private void OnPairMatch(object sender, RoutedEventArgs e)
+    {
+        Native.mc_confirm_pairing(1);
+        UpdateStatus();
+    }
+
+    private void OnPairCancel(object sender, RoutedEventArgs e)
+    {
+        Native.mc_confirm_pairing(0);
+        UpdateStatus();
+    }
 
     private void OnDeviceClick(object sender, RoutedEventArgs e)
     {
@@ -270,8 +284,21 @@ public partial class MainWindow : Window
         // Preview overlay
         Overlay.Visibility = live ? Visibility.Collapsed : Visibility.Visible;
         Preview.Opacity = live ? 1.0 : 0.25;
-        OverlayProgress.Visibility = s.State is Native.StateSearching or Native.StateConnecting || (streaming && !live)
+        bool askUser = s.State == Native.StatePairing && s.PairingStage is Native.PairingConfirm or Native.PairingWaitUser;
+        PairingButtons.Visibility = askUser ? Visibility.Visible : Visibility.Collapsed;
+        OverlayProgress.Visibility = s.State is Native.StateSearching or Native.StateConnecting || (streaming && !live) ||
+                                     (s.State == Native.StatePairing && !askUser)
             ? Visibility.Visible : Visibility.Collapsed;
+        // Pairing needs this PC's user: bring the window up if MobCam is in the tray.
+        if (s.State == Native.StatePairing && _status0State != Native.StatePairing && !IsVisible)
+        {
+            Show();
+            Activate();
+        }
+        _status0State = s.State;
+
+        // The engine stopped by itself (denied, cancelled, timed out, not paired): offer Connect again.
+        if (_wantConnected && s.State == Native.StateIdle && s.Problem != Native.ProblemNone) _wantConnected = false;
         if (!live)
         {
             switch (s.State)
@@ -286,7 +313,12 @@ public partial class MainWindow : Window
                 case Native.StatePairing:
                     OverlayIcon.Text = ""; // lock
                     OverlayTitle.Text = $"Pairing code  {s.PairingCode / 1000:000} {s.PairingCode % 1000:000}";
-                    OverlayText.Text = $"Check that {s.Peer} shows the same code, then tap Allow on the phone.";
+                    OverlayText.Text = s.PairingStage switch
+                    {
+                        Native.PairingWaitPhone => $"Thanks. Now tap Allow on {s.Peer}.",
+                        Native.PairingWaitUser => $"{s.Peer} allowed the connection. Does it show the same code?",
+                        _ => $"Does {s.Peer} show the same code? Confirm here and tap Allow on the phone.",
+                    };
                     break;
                 case Native.StateStreaming:
                     OverlayIcon.Text = "";

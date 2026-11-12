@@ -35,7 +35,15 @@ enum class HandshakeResult {
   PhoneTooNew,   // phone speaks a newer protocol: update the PC app
   Denied,        // phone sent DENIED, see deniedReason
   NotPaired,     // Wi-Fi phone skipped pairing but this PC doesn't know it
+  Cancelled,     // this PC's user cancelled pairing or didn't confirm in time
   Failed,        // I/O error, timeout, bad signature...
+};
+
+// Two-sided pairing: the phone's user taps Allow and this PC's user confirms the same code.
+struct PairingHooks {
+  std::function<void(int code)> onPairing;        // the phone started asking its user; show the code
+  std::function<void()> onPhoneAllowed;           // the phone's user tapped Allow
+  std::function<bool(int timeoutMs)> waitForUser; // blocks until this PC's user answers; true = codes match
 };
 
 // DENIED reasons from the phone.
@@ -58,8 +66,9 @@ class SecureSession {
   SecureSession(const SecureSession&) = delete;
   SecureSession& operator=(const SecureSession&) = delete;
 
-  // Blocking. onPairing(code) runs when the phone starts asking its user (code is 0..999999).
-  HandshakeResult Handshake(SOCKET s, bool usb, const std::function<void(int code)>& onPairing, HandshakeInfo* info);
+  // Blocking. For a new phone on Wi-Fi it calls the pairing hooks and only trusts the phone (and
+  // sends the PAIRED record) after this PC's user confirmed the code too.
+  HandshakeResult Handshake(SOCKET s, bool usb, const PairingHooks& pairing, HandshakeInfo* info);
 
   // Feeds bytes from the socket; calls onVideo for every decrypted VIDEO record.
   // Returns false if a record is malformed or fails authentication (drop the connection).

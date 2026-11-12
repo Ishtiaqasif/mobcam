@@ -26,6 +26,7 @@ import java.security.spec.ECGenParameterSpec
 import java.security.spec.ECParameterSpec
 import java.security.spec.ECPoint
 import java.security.spec.ECPublicKeySpec
+import java.util.Locale
 import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
 import javax.crypto.Mac
@@ -47,6 +48,11 @@ object Proto {
 
   const val REC_VIDEO = 0x10
   const val REC_COMMAND = 0x11
+  /** PC → phone, empty: the PC's user confirmed the pairing code too (two-sided pairing). */
+  const val REC_PAIRED = 0x12
+
+  /** How long the phone waits for [REC_PAIRED] after its own user tapped Allow. */
+  const val PC_CONFIRM_TIMEOUT_MS = 65_000
 
   const val DENIED_BY_USER = 1
   const val DENIED_TIMEOUT = 2
@@ -90,7 +96,7 @@ object Crypto {
   fun sha256(vararg parts: ByteArray): ByteArray =
     MessageDigest.getInstance("SHA-256").run { parts.forEach { update(it) }; digest() }
 
-  fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
+  fun hex(bytes: ByteArray) = bytes.joinToString("") { String.format(Locale.ROOT, "%02x", it) }
 
   /** Uncompressed X9.62 point, 65 bytes. */
   fun encodePoint(key: PublicKey): ByteArray {
@@ -245,6 +251,12 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
     private set
 
   /**
+   * True when this phone's user allowed a new PC but the PC's user hasn't confirmed the code yet.
+   * Set by the [PairingGate]; the stream server then holds video and trust until [Proto.REC_PAIRED].
+   */
+  @Volatile var pendingPairing = false
+
+  /**
    * Runs the handshake. Throws on any failure (the caller just closes the socket).
    * Returns normally only when the PC is authenticated and allowed.
    */
@@ -303,7 +315,8 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
     sendKey = SecretKeySpec(Crypto.expand(prk, Proto.LABEL_PHONE_TO_PC, 32), "AES")
     val codeBytes = Crypto.expand(prk, Proto.LABEL_CODE, 4)
     val codeValue = (BigInteger(1, codeBytes).toLong() % 1_000_000).toInt()
-    val code = "%03d %03d".format(codeValue / 1000, codeValue % 1000)
+    // Locale.ROOT: ASCII digits on every device, matching the PC (e.g. not Bengali/Arabic digits).
+    val code = String.format(Locale.ROOT, "%03d %03d", codeValue / 1000, codeValue % 1000)
 
     val hello = PcHello(pcKeyBytes, pcName.ifBlank { "PC" })
     pc = hello
