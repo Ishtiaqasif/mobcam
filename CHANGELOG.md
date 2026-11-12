@@ -6,6 +6,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 ### Added
+- **About** in both apps (phone: below *Paired PCs*; Windows app: the App card): version, a
+  short privacy summary, links to the project and the privacy statement, and the licences of the
+  third-party software MobCam includes. The installer and the APK now ship
+  `THIRD-PARTY-NOTICES.txt`.
 - Privacy statement ([PRIVACY.md](PRIVACY.md)): what MobCam stores, where, and how to remove it.
   In short: no accounts, no analytics, and the video never leaves your phone and PC.
 

@@ -68,6 +68,8 @@ public partial class MainWindow : Window
         PairedList.ItemsSource = _paired;
     }
 
+    private void OnAbout(object sender, RoutedEventArgs e) => new AboutWindow(Icon) { Owner = this }.ShowDialog();
+
     /// <summary>Starts the engine side. Called once, even when MobCam starts hidden in the tray.</summary>
     public void Start()
     {

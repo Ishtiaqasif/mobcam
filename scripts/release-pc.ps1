@@ -22,6 +22,8 @@ if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
 foreach ($f in 'mobcam-core.dll', 'mobcam-cli.exe', 'mobcam-source.dll') {
   Copy-Item (Join-Path $pc "build\bin\$f") $publish -Force
 }
+# Licences of the bundled .NET runtime, installed next to MobCam.exe (About dialog)
+& (Join-Path $PSScriptRoot 'notices.ps1') -Target pc -PublishDir $publish
 
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force $dist | Out-Null

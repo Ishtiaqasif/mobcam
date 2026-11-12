@@ -51,6 +51,10 @@ jobs:
         run: npx expo prebuild --platform android --no-install
         env:
           CI: '1'
+      # Fails if a new dependency has a licence the script can't place (scripts/notices.ps1)
+      - name: Third-party notices
+        shell: pwsh
+        run: ../scripts/notices.ps1 -Target phone
       - name: Unit tests (SEI, lenses, protocol v2)
         working-directory: app/android
         run: ./gradlew :mobcam-stream:testDebugUnitTest --console=plain
