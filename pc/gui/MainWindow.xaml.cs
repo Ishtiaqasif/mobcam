@@ -49,6 +49,9 @@ public partial class MainWindow : Window
         InitializeComponent();
         Icon = icon;
         LogoImage.Source = icon;
+        // Which build is running: version in the title bar, version + commit in the App card.
+        Title = $"MobCam {BuildInfo.Version}";
+        VersionText.Text = $"Version {BuildInfo.Label}";
         Preview.Source = _preview;
         DeviceList.ItemsSource = _devices;
     }
