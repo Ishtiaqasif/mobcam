@@ -87,9 +87,13 @@ jobs:
           CI: '1'
       # Build the Expo/React Native modules before CodeQL starts watching, so only our own
       # module's compilation (re-run below) is analysed, not third-party code in node_modules.
+      # The daemons are stopped afterwards: a compile inside a daemon started before CodeQL is
+      # invisible to its tracer.
       - name: Compile dependencies (not analysed)
         working-directory: app/android
-        run: ./gradlew :mobcam-stream:compileReleaseKotlin --console=plain
+        run: |
+          ./gradlew :mobcam-stream:compileReleaseKotlin --console=plain
+          ./gradlew --stop
       - uses: github/codeql-action/init@v4
         with:
           languages: java-kotlin
@@ -97,7 +101,9 @@ jobs:
           queries: security-and-quality
       - name: Compile the MobCam native module
         working-directory: app/android
-        run: ./gradlew :mobcam-stream:compileReleaseKotlin --rerun --console=plain
+        run: >-
+          ./gradlew :mobcam-stream:compileReleaseKotlin --rerun --no-daemon --console=plain
+          -Pkotlin.compiler.execution.strategy=in-process
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:java-kotlin
