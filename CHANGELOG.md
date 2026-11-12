@@ -13,7 +13,8 @@ uses [Semantic Versioning](https://semver.org/).
   Both sides must confirm, so a rogue device on the network can't pair itself with your PC either.
   After that the PC reconnects without asking. Video and commands are encrypted (AES-256-GCM) on
   Wi-Fi and USB alike; USB never asks.
-- The phone app has a **Paired PCs** list with *Forget*.
+- Paired devices are listed with *Forget*: **Paired PCs** on the phone, **Paired phones** in the
+  Windows app.
 - Phone and PC apps from before this change can't connect to each other; both tell you to update.
 - Raw testing with `ffplay tcp://<phone>:5000` no longer works.
 

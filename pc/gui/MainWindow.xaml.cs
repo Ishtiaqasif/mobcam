@@ -22,6 +22,15 @@ public sealed class DeviceItem
     public string StateGlyph { get; set; } = "";
 }
 
+/// <summary>A phone in the "Paired phones" list (trusted for Wi-Fi by this Windows user).</summary>
+public sealed class PairedPhoneItem
+{
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+    public DateTime PairedAt { get; init; }
+    public string Detail => $"Paired {PairedAt.ToLocalTime():d}";
+}
+
 public partial class MainWindow : Window
 {
     private const int PreviewWidth = 960, PreviewHeight = 540;
@@ -31,6 +40,7 @@ public partial class MainWindow : Window
         new(PreviewWidth, PreviewHeight, 96, 96, PixelFormats.Bgra32, null);
     private readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly ObservableCollection<DeviceItem> _devices = new();
+    private readonly ObservableCollection<PairedPhoneItem> _paired = new();
 
     private Native.Status _status;
     private long _previewSeq;
@@ -52,6 +62,7 @@ public partial class MainWindow : Window
         LogoImage.Source = icon;
         Preview.Source = _preview;
         DeviceList.ItemsSource = _devices;
+        PairedList.ItemsSource = _paired;
     }
 
     /// <summary>Starts the engine side. Called once, even when MobCam starts hidden in the tray.</summary>
@@ -66,6 +77,7 @@ public partial class MainWindow : Window
         _statusTimer.Start();
         CompositionTarget.Rendering += OnRendering;
         DiscoveryLoop();
+        RefreshPairedPhones();
 
         if (_settings.AutoConnect) Connect(_settings.Mode, _settings.Mode == Native.LinkWifi ? _settings.Host : "");
         UpdateStatus();
@@ -295,6 +307,7 @@ public partial class MainWindow : Window
             Show();
             Activate();
         }
+        if (s.State != _status0State) RefreshPairedPhones(); // e.g. a pairing just finished
         _status0State = s.State;
 
         // The engine stopped by itself (denied, cancelled, timed out, not paired): offer Connect again.
@@ -476,6 +489,40 @@ public partial class MainWindow : Window
         _settings.Fill = FrameFill.IsChecked == true;
         Native.mc_set_fill(_settings.Fill ? 1 : 0);
         _settings.Save();
+    }
+
+    // ================================================================ paired phones
+
+    private void RefreshPairedPhones()
+    {
+        var buffer = new Native.PairedPhone[32];
+        int n = Native.mc_get_paired_phones(buffer, buffer.Length);
+        var phones = buffer.Take(n)
+            .Select(p => new PairedPhoneItem
+            {
+                Id = p.Id,
+                Name = string.IsNullOrWhiteSpace(p.Name) ? "Phone" : p.Name,
+                PairedAt = DateTimeOffset.FromUnixTimeSeconds(p.PairedAt).UtcDateTime,
+            })
+            .OrderByDescending(p => p.PairedAt)
+            .ToList();
+        if (!phones.Select(p => p.Id).SequenceEqual(_paired.Select(p => p.Id)))
+        {
+            _paired.Clear();
+            foreach (var p in phones) _paired.Add(p);
+        }
+        NoPairedText.Visibility = _paired.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnForgetPhone(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not PairedPhoneItem phone) return;
+        var answer = MessageBox.Show(this,
+            $"Forget {phone.Name}?\n\nTo use it over Wi-Fi again, also forget this PC under Paired PCs on the phone, then pair again. USB keeps working.",
+            "MobCam", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.OK) return;
+        Native.mc_forget_phone(phone.Id);
+        RefreshPairedPhones();
     }
 
     private void OnAppOptionClick(object sender, RoutedEventArgs e)
