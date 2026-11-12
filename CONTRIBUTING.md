@@ -8,6 +8,12 @@ Open an issue with the **Bug report** template. Please include your phone model 
 version, your Windows build, whether you use USB or Wi-Fi, and, for camera problems, the log at
 `C:\ProgramData\MobCam\mobcam-source.log`.
 
+**Security problems** (for example watching the camera without pairing) go through a
+[private report](https://github.com/Ishtiaqasif/mobcam/security/advisories/new), not a public
+issue; see [SECURITY.md](SECURITY.md).
+
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Development setup
 
 Everything builds from the command line on Windows 11; see

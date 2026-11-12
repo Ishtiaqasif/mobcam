@@ -61,6 +61,13 @@ Paired devices are listed under **Paired PCs** on the phone and **Paired phones*
 <img src="docs/images/phone-app.png" width="720" alt="MobCam phone app" />
 </div>
 
+## Privacy
+
+No accounts, no analytics, no ads, no servers. The video goes from your phone to your own PC,
+over the USB cable or your local network, and is never recorded or sent anywhere else. Neither
+app connects to the internet. Pairings and settings stay on your devices. Details, including
+what is stored where and how to remove it: [PRIVACY.md](PRIVACY.md).
+
 ## How it works
 
 ```
@@ -189,7 +196,9 @@ progress. Ideas and questions go to [Discussions](https://github.com/Ishtiaqasif
 
 ## Contributing
 
-Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md). Found a security problem? Please report it privately
+([SECURITY.md](SECURITY.md)).
 
 ## License
 

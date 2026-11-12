@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- Privacy statement ([PRIVACY.md](PRIVACY.md)): what MobCam stores, where, and how to remove it.
+  In short: no accounts, no analytics, and the video never leaves your phone and PC.
+
 ### Security
 - The phone app now checks itself that a PC's session key is a valid P-256 point, instead of
   relying on Android's crypto provider to reject invalid ones.
