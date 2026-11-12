@@ -261,14 +261,18 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
    * Returns normally only when the PC is authenticated and allowed.
    */
   fun handshake(gate: PairingGate, usb: Boolean) {
-    socket.soTimeout = 10_000
-
-    // Preambles.
-    val pcPreamble = try {
-      readExactly(8)
+    // Preambles. A v2 PC sends its preamble immediately. A v1 PC sends nothing, waits for video
+    // and hangs up after ~3 s, so silence or a hang-up before the preamble means an old PC.
+    socket.soTimeout = 2_500
+    val pcPreamble = ByteArray(8)
+    try {
+      input.readFully(pcPreamble)
     } catch (e: SocketTimeoutException) {
-      throw VersionException(null) // a v1 PC waits for video and sends nothing
+      throw VersionException(null)
+    } catch (e: EOFException) {
+      throw VersionException(null)
     }
+    socket.soTimeout = 10_000
     if (!pcPreamble.copyOfRange(0, 6).contentEquals(Proto.MAGIC)) throw VersionException(null)
     transcript.write(pcPreamble)
     val pcVersion = ((pcPreamble[6].toInt() and 0xFF) shl 8) or (pcPreamble[7].toInt() and 0xFF)
