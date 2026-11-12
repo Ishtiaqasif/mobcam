@@ -34,6 +34,8 @@ try {
   $env:CI = '1'
   npx expo prebuild --platform android --no-install
   if ($LASTEXITCODE -ne 0) { throw 'expo prebuild failed' }
+  # Licences of everything in the APK, shown in the app's About screen
+  & (Join-Path $PSScriptRoot 'notices.ps1') -Target phone
 
   Push-Location android
   try {

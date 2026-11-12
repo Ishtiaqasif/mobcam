@@ -2,6 +2,8 @@ package expo.modules.mobcamstream
 
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.OrientationEventListener
 import android.view.View
 import android.view.WindowInsets
@@ -14,6 +16,12 @@ private const val STATUS_EVENT = "onStatus"
 private const val PAIRING_EVENT = "onPairingRequest"
 private const val PAIRING_CLOSED_EVENT = "onPairingClosed"
 private const val PAIRED_CHANGED_EVENT = "onPairedPcsChanged"
+private const val NOTICES_ASSET = "THIRD-PARTY-NOTICES.txt"
+
+private const val SETTINGS = "mobcam-settings"
+private const val KEY_BACKGROUND = "backgroundStreaming"
+/** A PC that drops off may reconnect; keep the background service this long without one. */
+private const val IDLE_STOP_MS = 60_000L
 
 class MobcamStreamModule : Module() {
   private var engine: StreamEngine? = null
@@ -31,6 +39,24 @@ class MobcamStreamModule : Module() {
 
   private val store: PairedPcStore by lazy { PairedPcStore(context) }
 
+  // ---- "Keep streaming in background" (StreamService). All of this runs on the main thread.
+  private val main = Handler(Looper.getMainLooper())
+  /** Application context captured by start(), still usable in OnDestroy. */
+  private var appCtx: Context? = null
+  @Volatile private var inForeground = true
+  /** The foreground service was started and not stopped since. */
+  @Volatile private var serviceOn = false
+  private var backgroundSetting: Boolean? = null
+  private var keepStreaming: Boolean
+    get() = backgroundSetting
+      ?: context.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE).getBoolean(KEY_BACKGROUND, false)
+        .also { backgroundSetting = it }
+    set(value) {
+      backgroundSetting = value
+      context.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE).edit().putBoolean(KEY_BACKGROUND, value).apply()
+    }
+  private val idleStop = Runnable { if ((server?.clientCount ?: 0) == 0) stopBackgroundService() }
+
   override fun definition() = ModuleDefinition {
     Name("MobcamStream")
 
@@ -39,6 +65,8 @@ class MobcamStreamModule : Module() {
     /** Starts the camera, encoder, TCP server and discovery responder. Idempotent. */
     Function("start") {
       val ctx = context
+      appCtx = ctx
+      StreamService.onStopRequested = { onNotificationStop() }
       val eng = engine ?: Mobcam.engine(ctx).also { engine = it }
       if (server == null) {
         val gate = PairingBroker(
@@ -51,7 +79,11 @@ class MobcamStreamModule : Module() {
           port = Mobcam.STREAM_PORT,
           phoneName = Mobcam.deviceName,
           gate = gate,
-          onClientsChanged = { notice = null; emitStatus() },
+          onClientsChanged = {
+            notice = null
+            emitStatus()
+            main.post { updateBackgroundService() }
+          },
           onKeyFrameNeeded = { eng.requestKeyFrame() },
           onCommand = { command -> handleCommand(eng, command) },
           onVersionMismatch = { version ->
@@ -99,6 +131,16 @@ class MobcamStreamModule : Module() {
 
     Function("setResolution") { height: Int -> engine?.setResolution(height) }
 
+    /**
+     * "Keep streaming in background": while a PC is connected, a foreground service with an
+     * ongoing notification keeps the camera running with the screen off or another app open.
+     */
+    Function("setBackgroundStreaming") { on: Boolean ->
+      keepStreaming = on
+      main.post { updateBackgroundService() }
+      emitStatus()
+    }
+
     Function("getStatus") { statusMap() }
 
     /** Answers the open pairing prompt (see onPairingRequest). */
@@ -117,23 +159,39 @@ class MobcamStreamModule : Module() {
       sendEvent(PAIRED_CHANGED_EVENT, mapOf<String, Any>())
     }
 
+    /**
+     * THIRD-PARTY-NOTICES.txt from the APK's assets, or null in builds made without
+     * scripts/notices.ps1 (development builds).
+     */
+    AsyncFunction("readNotices") {
+      runCatching { context.assets.open(NOTICES_ASSET).bufferedReader().use { it.readText() } }.getOrNull()
+    }
+
     OnActivityEntersForeground {
+      inForeground = true
       // Android takes the camera away from background apps; grab it back on return.
       if (started) {
         engine?.start()
         orientation?.enable()
         configureWindow()
+        main.post { updateBackgroundService() }
       }
     }
 
     OnActivityEntersBackground {
-      if (started) {
+      inForeground = false
+      // With the background service running the camera may stay on; otherwise stop it.
+      if (started && !serviceOn) {
         engine?.stop()
         orientation?.disable()
       }
     }
 
     OnDestroy {
+      main.removeCallbacks(idleStop)
+      StreamService.onStopRequested = null
+      appCtx?.let { StreamService.stop(it) }
+      serviceOn = false
       started = false
       orientation?.disable()
       orientation = null
@@ -156,6 +214,51 @@ class MobcamStreamModule : Module() {
       "FACING" -> eng.setFacing(if (parts.getOrNull(1)?.trim()?.lowercase() == "front") Facing.FRONT else Facing.BACK)
       "RES" -> parts.getOrNull(1)?.trim()?.toIntOrNull()?.let { eng.setResolution(it) }
       "LENS" -> parts.getOrNull(1)?.trim()?.toIntOrNull()?.let { eng.selectLens(it) }
+    }
+  }
+
+  /**
+   * Runs the foreground service while the setting is on and a PC is connected. It can only be
+   * started while the app is visible, which is when the user connects and turns the screen off.
+   */
+  private fun updateBackgroundService() {
+    val ctx = appCtx ?: return
+    val connected = (server?.clientCount ?: 0) > 0
+    if (started && keepStreaming && connected) {
+      main.removeCallbacks(idleStop)
+      if (!serviceOn && inForeground) {
+        StreamService.start(ctx)
+        serviceOn = true
+        emitStatus()
+      }
+    } else if (serviceOn) {
+      if (!started || !keepStreaming) {
+        stopBackgroundService()
+      } else {
+        main.removeCallbacks(idleStop)
+        main.postDelayed(idleStop, IDLE_STOP_MS)
+      }
+    }
+  }
+
+  private fun stopBackgroundService() {
+    main.removeCallbacks(idleStop)
+    if (!serviceOn) return
+    serviceOn = false
+    appCtx?.let { StreamService.stop(it) }
+    if (!inForeground) {
+      engine?.stop()
+      orientation?.disable()
+    }
+    emitStatus()
+  }
+
+  /** *Stop* in the notification: stop for now; opening MobCam again resumes as usual. */
+  private fun onNotificationStop() {
+    stopBackgroundService()
+    if (!inForeground) {
+      notice = "Background streaming was stopped from the notification."
+      emitStatus()
     }
   }
 
@@ -187,6 +290,8 @@ class MobcamStreamModule : Module() {
       "wifiClients" to total - usb,
       "addresses" to Mobcam.localAddresses(),
       "port" to Mobcam.STREAM_PORT,
+      "backgroundStreaming" to keepStreaming,
+      "backgroundActive" to serviceOn,
     )
   }
 

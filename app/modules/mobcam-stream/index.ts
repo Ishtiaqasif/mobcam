@@ -38,6 +38,10 @@ export type MobcamStatus = {
   /** LAN IPv4 addresses of the phone, Wi-Fi first. */
   addresses: string[];
   port: number;
+  /** "Keep streaming in background" setting (persisted on the phone). */
+  backgroundStreaming: boolean;
+  /** The background service is running (setting on and a PC connected). */
+  backgroundActive: boolean;
 };
 
 /** An unpaired PC on Wi-Fi asks to use the camera. Both screens show `code`. */
@@ -69,11 +73,15 @@ declare class MobcamStreamModule extends NativeModule<MobcamEvents> {
   switchCamera(): void;
   selectLens(index: number): void;
   setResolution(height: number): void;
+  /** Keep streaming with the screen off or another app open, while a PC is connected. */
+  setBackgroundStreaming(on: boolean): void;
   getStatus(): MobcamStatus;
   respondPairing(id: number, allow: boolean): void;
   getPendingPairing(): PairingRequest | null;
   getPairedPcs(): PairedPc[];
   forgetPc(id: string): void;
+  /** Licences of the bundled third-party software; null in development builds. */
+  readNotices(): Promise<string | null>;
 }
 
 export const MobcamStream = requireNativeModule<MobcamStreamModule>('MobcamStream');

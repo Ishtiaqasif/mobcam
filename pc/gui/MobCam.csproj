@@ -15,7 +15,7 @@
     <SelfContained>false</SelfContained>
     <!-- Fluent ThemeMode is still marked experimental in WPF -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <Product>MobCam</Product>
     <ApplicationIcon>mobcam.ico</ApplicationIcon>
   </PropertyGroup>

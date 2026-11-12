@@ -1,0 +1,56 @@
+<Window x:Class="MobCam.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="About MobCam" Width="680" Height="640" MinWidth="480" MinHeight="420"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+
+    <Window.Resources>
+        <Style x:Key="Caption" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,16,0,4" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <StackPanel Orientation="Horizontal">
+                <Image x:Name="LogoImage" Width="40" Height="40" Margin="0,0,12,0" VerticalAlignment="Center" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="MobCam" FontSize="22" FontWeight="SemiBold" />
+                    <TextBlock x:Name="VersionText" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Margin="0,14,0,0" TextWrapping="Wrap"
+                       Text="Use your Android phone as a webcam for Windows, over USB or Wi-Fi. Free and open-source software under the MIT License." />
+
+            <TextBlock Text="Privacy" Style="{StaticResource Heading}" />
+            <TextBlock x:Name="PrivacyText" Style="{StaticResource Caption}" />
+
+            <WrapPanel Margin="0,12,0,0">
+                <TextBlock Margin="0,0,20,0"><Hyperlink NavigateUri="https://github.com/Ishtiaqasif/mobcam" RequestNavigate="OnLink">GitHub</Hyperlink></TextBlock>
+                <TextBlock Margin="0,0,20,0"><Hyperlink NavigateUri="https://github.com/Ishtiaqasif/mobcam/blob/main/PRIVACY.md" RequestNavigate="OnLink">Privacy statement</Hyperlink></TextBlock>
+                <TextBlock Margin="0,0,20,0"><Hyperlink NavigateUri="https://github.com/Ishtiaqasif/mobcam/blob/main/LICENSE" RequestNavigate="OnLink">MIT License</Hyperlink></TextBlock>
+                <TextBlock><Hyperlink NavigateUri="https://github.com/Ishtiaqasif/mobcam/issues" RequestNavigate="OnLink">Report a problem</Hyperlink></TextBlock>
+            </WrapPanel>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Text="Third-party licences" Style="{StaticResource Heading}" />
+        <TextBox Grid.Row="2" x:Name="NoticesBox" IsReadOnly="True" TextWrapping="NoWrap"
+                 FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+
+        <Button Grid.Row="3" Content="Close" IsCancel="True" IsDefault="True" HorizontalAlignment="Right"
+                Padding="24,6" Margin="0,16,0,0" Click="OnClose" />
+    </Grid>
+</Window>
