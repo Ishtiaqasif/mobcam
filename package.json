@@ -9,6 +9,8 @@
     "phone:typecheck": "npm --prefix app run typecheck",
     "pc:build": "pwsh -NoProfile -File pc/build.ps1",
     "pc:run": "pwsh -NoProfile -File pc/build.ps1 -Run",
+    "pc:test": "pwsh -NoProfile -File pc/build.ps1 -Test",
+    "phone:test": "pwsh -NoProfile -File scripts/phone-test.ps1",
     "pc:install-camera": "pwsh -NoProfile -Command \"./pc/build/bin/mobcam-cli.exe install\"",
     "release:phone": "pwsh -NoProfile -File scripts/release-phone.ps1",
     "release:pc": "pwsh -NoProfile -File scripts/release-pc.ps1",

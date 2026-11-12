@@ -101,6 +101,9 @@ jobs:
         run: npx expo prebuild --platform android --no-install
         env:
           CI: '1'
+      - name: Third-party notices (bundled into the APK)
+        shell: pwsh
+        run: ../scripts/notices.ps1 -Target phone
       - name: Build signed APK
         working-directory: app/android
         env:

@@ -80,6 +80,8 @@ declare class MobcamStreamModule extends NativeModule<MobcamEvents> {
   getPendingPairing(): PairingRequest | null;
   getPairedPcs(): PairedPc[];
   forgetPc(id: string): void;
+  /** Licences of the bundled third-party software; null in development builds. */
+  readNotices(): Promise<string | null>;
 }
 
 export const MobcamStream = requireNativeModule<MobcamStreamModule>('MobcamStream');

@@ -12,4 +12,14 @@ android {
     versionCode 1
     versionName '0.1.0'
   }
+  // JVM unit tests (src/test) read the fixtures shared with the PC's tests.
+  testOptions {
+    unitTests.all { test ->
+      test.systemProperty 'mobcam.fixtures', file('../../../../tests/fixtures').absolutePath
+    }
+  }
+}
+
+dependencies {
+  testImplementation 'junit:junit:4.13.2'
 }

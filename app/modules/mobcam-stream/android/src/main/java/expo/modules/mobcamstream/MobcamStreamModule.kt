@@ -16,6 +16,7 @@ private const val STATUS_EVENT = "onStatus"
 private const val PAIRING_EVENT = "onPairingRequest"
 private const val PAIRING_CLOSED_EVENT = "onPairingClosed"
 private const val PAIRED_CHANGED_EVENT = "onPairedPcsChanged"
+private const val NOTICES_ASSET = "THIRD-PARTY-NOTICES.txt"
 
 private const val SETTINGS = "mobcam-settings"
 private const val KEY_BACKGROUND = "backgroundStreaming"
@@ -156,6 +157,14 @@ class MobcamStreamModule : Module() {
     Function("forgetPc") { id: String ->
       store.remove(id)
       sendEvent(PAIRED_CHANGED_EVENT, mapOf<String, Any>())
+    }
+
+    /**
+     * THIRD-PARTY-NOTICES.txt from the APK's assets, or null in builds made without
+     * scripts/notices.ps1 (development builds).
+     */
+    AsyncFunction("readNotices") {
+      runCatching { context.assets.open(NOTICES_ASSET).bufferedReader().use { it.readText() } }.getOrNull()
     }
 
     OnActivityEntersForeground {
