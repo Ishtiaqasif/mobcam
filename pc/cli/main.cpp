@@ -2,6 +2,7 @@
 // app uses to install the virtual camera.
 
 #include <windows.h>
+#include <conio.h>
 
 #include <atomic>
 #include <cstdio>
@@ -37,11 +38,28 @@ void PrintUsage() {
       L"  --no-camera                 decode only, don't register the virtual camera\n");
 }
 
+// Non-blocking read of one answer key: from the console, or from a pipe (echo y | mobcam-cli).
+// Returns 0 if nothing was typed.
+int ReadAnswerKey() {
+  HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+  if (in == INVALID_HANDLE_VALUE || in == nullptr) return 0;
+  const DWORD type = GetFileType(in);
+  if (type == FILE_TYPE_CHAR) return _kbhit() ? _getch() : 0;
+  if (type == FILE_TYPE_PIPE) {
+    DWORD available = 0;
+    if (!PeekNamedPipe(in, nullptr, 0, nullptr, &available, nullptr) || available == 0) return 0;
+  }
+  char c = 0;
+  DWORD read = 0;
+  return ReadFile(in, &c, 1, &read, nullptr) && read == 1 ? c : 0;
+}
+
 const wchar_t* StateName(int s) {
   switch (s) {
     case MC_STATE_SEARCHING: return L"searching";
     case MC_STATE_CONNECTING: return L"connecting";
     case MC_STATE_STREAMING: return L"live";
+    case MC_STATE_PAIRING: return L"pairing";
     default: return L"idle";
   }
 }
@@ -126,10 +144,53 @@ int wmain(int argc, wchar_t** argv) {
   mc_set_fill(fill ? 1 : 0);
   mc_connect(link, host.c_str(), port);
 
+  int shownCode = -1;
+  int shownStage = MC_PAIRING_NONE;
+  bool answered = false;
+  ULONGLONG lastStatus = 0;
   while (!g_quit) {
-    Sleep(1000);
+    Sleep(100);
     mc_status s{};
     mc_get_status(&s);
+    if (s.state == MC_STATE_PAIRING && s.pairing_code >= 0) {
+      if (s.pairing_code != shownCode) {
+        shownCode = s.pairing_code;
+        shownStage = MC_PAIRING_NONE;
+        answered = false;
+        wprintf(L"\n\n  Pairing with %s\n  Code:  %03d %03d\n", s.peer, shownCode / 1000, shownCode % 1000);
+      }
+      if (s.pairing_stage != shownStage) {
+        shownStage = s.pairing_stage;
+        if (shownStage == MC_PAIRING_WAIT_PHONE) {
+          wprintf(L"  Now tap Allow on the phone.\n");
+        } else if (!answered) {
+          wprintf(shownStage == MC_PAIRING_WAIT_USER ? L"  The phone allowed it. Does it show the same code? [y/n] "
+                                                     : L"  Does the phone show the same code? [y/n] (and tap Allow there) ");
+        }
+      }
+      fflush(stdout);
+      if (!answered) {
+        const int key = ReadAnswerKey();
+        if (key == 'y' || key == 'Y' || key == 'n' || key == 'N') {
+          answered = true;
+          const bool yes = key == 'y' || key == 'Y';
+          wprintf(L"%c\n", yes ? L'y' : L'n');
+          fflush(stdout);
+          mc_confirm_pairing(yes ? 1 : 0);
+        }
+      }
+      continue;
+    }
+    shownCode = -1;
+    // The status line once a second; the loop runs faster only to catch the pairing answer.
+    const ULONGLONG now = GetTickCount64();
+    if (now - lastStatus < 1000) continue;
+    lastStatus = now;
+    if (s.state == MC_STATE_IDLE && s.problem != MC_PROBLEM_NONE) {
+      wprintf(L"\n  %s\n", s.message);
+      fflush(stdout);
+      break;  // the engine stopped; the user has to act on the phone first
+    }
     if (s.state == MC_STATE_STREAMING && s.width) {
       wprintf(L"\r  %-4s | %s | %dx%d | %2d fps | %5d kbps | rot %3d | camera %-6s     ",
               s.link == MC_LINK_USB ? L"USB" : L"Wi-Fi", s.peer, s.width, s.height, s.fps, s.kbps, s.rotation,

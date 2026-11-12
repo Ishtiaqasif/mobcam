@@ -22,6 +22,15 @@ public sealed class DeviceItem
     public string StateGlyph { get; set; } = "";
 }
 
+/// <summary>A phone in the "Paired phones" list (trusted for Wi-Fi by this Windows user).</summary>
+public sealed class PairedPhoneItem
+{
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+    public DateTime PairedAt { get; init; }
+    public string Detail => $"Paired {PairedAt.ToLocalTime():d}";
+}
+
 public partial class MainWindow : Window
 {
     private const int PreviewWidth = 960, PreviewHeight = 540;
@@ -31,10 +40,12 @@ public partial class MainWindow : Window
         new(PreviewWidth, PreviewHeight, 96, 96, PixelFormats.Bgra32, null);
     private readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly ObservableCollection<DeviceItem> _devices = new();
+    private readonly ObservableCollection<PairedPhoneItem> _paired = new();
 
     private Native.Status _status;
     private long _previewSeq;
     private bool _wantConnected;
+    private int _status0State = Native.StateIdle; // state at the previous status update
     private bool _discovering;
     private bool _vcamBusy;
     private bool _shuttingDown;
@@ -54,6 +65,7 @@ public partial class MainWindow : Window
         VersionText.Text = $"Version {BuildInfo.Label}";
         Preview.Source = _preview;
         DeviceList.ItemsSource = _devices;
+        PairedList.ItemsSource = _paired;
     }
 
     /// <summary>Starts the engine side. Called once, even when MobCam starts hidden in the tray.</summary>
@@ -68,6 +80,7 @@ public partial class MainWindow : Window
         _statusTimer.Start();
         CompositionTarget.Rendering += OnRendering;
         DiscoveryLoop();
+        RefreshPairedPhones();
 
         if (_settings.AutoConnect) Connect(_settings.Mode, _settings.Mode == Native.LinkWifi ? _settings.Host : "");
         UpdateStatus();
@@ -112,6 +125,19 @@ public partial class MainWindow : Window
     }
 
     private void OnConnectClick(object sender, RoutedEventArgs e) => ToggleConnection();
+
+    // Two-sided pairing: this PC's user compares the code too.
+    private void OnPairMatch(object sender, RoutedEventArgs e)
+    {
+        Native.mc_confirm_pairing(1);
+        UpdateStatus();
+    }
+
+    private void OnPairCancel(object sender, RoutedEventArgs e)
+    {
+        Native.mc_confirm_pairing(0);
+        UpdateStatus();
+    }
 
     private void OnDeviceClick(object sender, RoutedEventArgs e)
     {
@@ -263,6 +289,7 @@ public partial class MainWindow : Window
         {
             Native.StateStreaming => (live ? $"Live · {link}" : "Starting video…", Res("SystemFillColorSuccessBrush")),
             Native.StateConnecting => ("Connecting…", Res("SystemFillColorCautionBrush")),
+            Native.StatePairing => ("Pairing…", Res("SystemFillColorCautionBrush")),
             Native.StateSearching => ("Searching…", Res("SystemFillColorCautionBrush")),
             _ => ("Not connected", Res("TextFillColorTertiaryBrush")),
         };
@@ -272,16 +299,42 @@ public partial class MainWindow : Window
         // Preview overlay
         Overlay.Visibility = live ? Visibility.Collapsed : Visibility.Visible;
         Preview.Opacity = live ? 1.0 : 0.25;
-        OverlayProgress.Visibility = s.State is Native.StateSearching or Native.StateConnecting || (streaming && !live)
+        bool askUser = s.State == Native.StatePairing && s.PairingStage is Native.PairingConfirm or Native.PairingWaitUser;
+        PairingButtons.Visibility = askUser ? Visibility.Visible : Visibility.Collapsed;
+        OverlayProgress.Visibility = s.State is Native.StateSearching or Native.StateConnecting || (streaming && !live) ||
+                                     (s.State == Native.StatePairing && !askUser)
             ? Visibility.Visible : Visibility.Collapsed;
+        // Pairing needs this PC's user: bring the window up if MobCam is in the tray.
+        if (s.State == Native.StatePairing && _status0State != Native.StatePairing && !IsVisible)
+        {
+            Show();
+            Activate();
+        }
+        if (s.State != _status0State) RefreshPairedPhones(); // e.g. a pairing just finished
+        _status0State = s.State;
+
+        // The engine stopped by itself (denied, cancelled, timed out, not paired): offer Connect again.
+        if (_wantConnected && s.State == Native.StateIdle && s.Problem != Native.ProblemNone) _wantConnected = false;
         if (!live)
         {
             switch (s.State)
             {
                 case Native.StateIdle:
                     OverlayIcon.Text = "";
-                    OverlayTitle.Text = "Not connected";
-                    OverlayText.Text = "Open the MobCam app on your phone, then click Connect or pick it from Phones nearby.";
+                    OverlayTitle.Text = s.Problem == Native.ProblemNone ? "Not connected" : "Couldn't connect";
+                    OverlayText.Text = s.Problem == Native.ProblemNone
+                        ? "Open the MobCam app on your phone, then click Connect or pick it from Phones nearby."
+                        : s.Message;
+                    break;
+                case Native.StatePairing:
+                    OverlayIcon.Text = ""; // lock
+                    OverlayTitle.Text = $"Pairing code  {s.PairingCode / 1000:000} {s.PairingCode % 1000:000}";
+                    OverlayText.Text = s.PairingStage switch
+                    {
+                        Native.PairingWaitPhone => $"Thanks. Now tap Allow on {s.Peer}.",
+                        Native.PairingWaitUser => $"{s.Peer} allowed the connection. Does it show the same code?",
+                        _ => $"Does {s.Peer} show the same code? Confirm here and tap Allow on the phone.",
+                    };
                     break;
                 case Native.StateStreaming:
                     OverlayIcon.Text = "";
@@ -439,6 +492,40 @@ public partial class MainWindow : Window
         _settings.Fill = FrameFill.IsChecked == true;
         Native.mc_set_fill(_settings.Fill ? 1 : 0);
         _settings.Save();
+    }
+
+    // ================================================================ paired phones
+
+    private void RefreshPairedPhones()
+    {
+        var buffer = new Native.PairedPhone[32];
+        int n = Native.mc_get_paired_phones(buffer, buffer.Length);
+        var phones = buffer.Take(n)
+            .Select(p => new PairedPhoneItem
+            {
+                Id = p.Id,
+                Name = string.IsNullOrWhiteSpace(p.Name) ? "Phone" : p.Name,
+                PairedAt = DateTimeOffset.FromUnixTimeSeconds(p.PairedAt).UtcDateTime,
+            })
+            .OrderByDescending(p => p.PairedAt)
+            .ToList();
+        if (!phones.Select(p => p.Id).SequenceEqual(_paired.Select(p => p.Id)))
+        {
+            _paired.Clear();
+            foreach (var p in phones) _paired.Add(p);
+        }
+        NoPairedText.Visibility = _paired.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnForgetPhone(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not PairedPhoneItem phone) return;
+        var answer = MessageBox.Show(this,
+            $"Forget {phone.Name}?\n\nTo use it over Wi-Fi again, also forget this PC under Paired PCs on the phone, then pair again. USB keeps working.",
+            "MobCam", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.OK) return;
+        Native.mc_forget_phone(phone.Id);
+        RefreshPairedPhones();
     }
 
     private void OnAppOptionClick(object sender, RoutedEventArgs e)

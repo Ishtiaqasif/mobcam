@@ -6,6 +6,18 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- **Wi-Fi pairing and encryption** (protocol v2). Others on the same Wi-Fi can no longer watch the
+  camera or control the phone. The first time a PC connects over Wi-Fi, both screens show a
+  6-digit code: tap *Allow* on the phone and *Codes match* on the PC (or `y` in `mobcam-cli`).
+  Both sides must confirm, so a rogue device on the network can't pair itself with your PC either.
+  After that the PC reconnects without asking. Video and commands are encrypted (AES-256-GCM) on
+  Wi-Fi and USB alike; USB never asks.
+- Paired devices are listed with *Forget*: **Paired PCs** on the phone, **Paired phones** in the
+  Windows app.
+- Phone and PC apps from before this change can't connect to each other; both tell you to update.
+- Raw testing with `ffplay tcp://<phone>:5000` no longer works.
+
 ### Added
 - Both apps show their version and the git commit they were built from (phone: bottom of the
   panel; Windows app: title bar and the App card), marked "modified" for builds with uncommitted

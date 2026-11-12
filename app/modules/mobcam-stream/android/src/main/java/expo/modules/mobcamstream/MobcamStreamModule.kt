@@ -11,33 +11,68 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 private const val STATUS_EVENT = "onStatus"
+private const val PAIRING_EVENT = "onPairingRequest"
+private const val PAIRING_CLOSED_EVENT = "onPairingClosed"
+private const val PAIRED_CHANGED_EVENT = "onPairedPcsChanged"
 
 class MobcamStreamModule : Module() {
   private var engine: StreamEngine? = null
   private var server: StreamServer? = null
   private var discovery: DiscoveryResponder? = null
+  private var broker: PairingBroker? = null
   private var orientation: OrientationEventListener? = null
   @Volatile private var engineState: EngineState? = null
+  /** Shown under the connection line, e.g. "A PC with an old MobCam version tried to connect". */
+  @Volatile private var notice: String? = null
   private var started = false
 
   private val context: Context
     get() = requireNotNull(appContext.reactContext) { "React context is gone" }.applicationContext
 
+  private val store: PairedPcStore by lazy { PairedPcStore(context) }
+
   override fun definition() = ModuleDefinition {
     Name("MobcamStream")
 
-    Events(STATUS_EVENT)
+    Events(STATUS_EVENT, PAIRING_EVENT, PAIRING_CLOSED_EVENT, PAIRED_CHANGED_EVENT)
 
     /** Starts the camera, encoder, TCP server and discovery responder. Idempotent. */
     Function("start") {
       val ctx = context
       val eng = engine ?: Mobcam.engine(ctx).also { engine = it }
       if (server == null) {
+        val gate = PairingBroker(
+          store,
+          onPrompt = { sendEvent(PAIRING_EVENT, pairingMap(it)) },
+          onPromptClosed = { sendEvent(PAIRING_CLOSED_EVENT, mapOf("id" to it.id)) },
+          onPairedChanged = { sendEvent(PAIRED_CHANGED_EVENT, mapOf<String, Any>()) },
+        ).also { broker = it }
         server = StreamServer(
           port = Mobcam.STREAM_PORT,
-          onClientsChanged = { emitStatus() },
+          phoneName = Mobcam.deviceName,
+          gate = gate,
+          onClientsChanged = { notice = null; emitStatus() },
           onKeyFrameNeeded = { eng.requestKeyFrame() },
           onCommand = { command -> handleCommand(eng, command) },
+          onVersionMismatch = { version ->
+            notice = if (version != null && version > Proto.VERSION) {
+              "A newer MobCam PC app tried to connect. Update this app."
+            } else {
+              "A PC with an old MobCam version tried to connect. Update MobCam on the PC."
+            }
+            emitStatus()
+          },
+          onPairing = { pc, stage ->
+            when (stage) {
+              PairingStage.WAITING_FOR_PC -> notice = "Now confirm the code on ${pc.name} to finish pairing."
+              PairingStage.PAIRED -> {
+                gate.confirm(pc)
+                notice = null
+              }
+              PairingStage.CANCELLED -> notice = "Pairing with ${pc.name} was not confirmed on the PC. Nothing was saved."
+            }
+            emitStatus()
+          },
         ).also { it.start() }
         discovery = DiscoveryResponder(ctx, Mobcam.DISCOVERY_PORT, Mobcam.STREAM_PORT).also { it.start() }
       }
@@ -66,6 +101,22 @@ class MobcamStreamModule : Module() {
 
     Function("getStatus") { statusMap() }
 
+    /** Answers the open pairing prompt (see onPairingRequest). */
+    Function("respondPairing") { id: Int, allow: Boolean -> broker?.respond(id, allow) }
+
+    /** The prompt that is open right now, or null (for a UI that mounts late). */
+    Function("getPendingPairing") { broker?.pending?.let { pairingMap(it) } }
+
+    Function("getPairedPcs") {
+      store.list().map { mapOf("id" to it.id, "name" to it.name, "pairedAt" to it.pairedAt.toDouble()) }
+    }
+
+    /** Forgets a PC; it has to pair again (already connected sessions keep running). */
+    Function("forgetPc") { id: String ->
+      store.remove(id)
+      sendEvent(PAIRED_CHANGED_EVENT, mapOf<String, Any>())
+    }
+
     OnActivityEntersForeground {
       // Android takes the camera away from background apps; grab it back on return.
       if (started) {
@@ -91,6 +142,7 @@ class MobcamStreamModule : Module() {
       discovery?.stop()
       server = null
       discovery = null
+      broker = null
     }
 
     View(MobcamPreviewView::class) {}
@@ -111,6 +163,9 @@ class MobcamStreamModule : Module() {
     sendEvent(STATUS_EVENT, statusMap())
   }
 
+  private fun pairingMap(r: PairingRequest): Map<String, Any> =
+    mapOf("id" to r.id, "pcName" to r.pc.name, "code" to r.code)
+
   private fun statusMap(): Map<String, Any?> {
     val s = engineState
     val total = server?.clientCount ?: 0
@@ -126,6 +181,7 @@ class MobcamStreamModule : Module() {
       "width" to (s?.width ?: 0),
       "height" to (s?.height ?: 0),
       "error" to s?.error,
+      "notice" to notice,
       "clients" to total,
       "usbClients" to usb,
       "wifiClients" to total - usb,

@@ -36,13 +36,21 @@ Get both files from the [latest release](https://github.com/Ishtiaqasif/mobcam/r
      *Developer options* and accept the prompt when you plug it in.
    - **Wi-Fi**: phone and PC on the same network. Allow MobCam through the Windows firewall
      the first time.
-4. In Zoom, Teams, Meet, OBS, your browser or the Camera app, choose **MobCam** as the camera.
+4. **Pair (Wi-Fi, first time only).** Both screens show the same 6-digit code. Check that they
+   match, then tap **Allow** on the phone and **Codes match** on the PC (either order). After that
+   the PC reconnects without asking. USB never needs pairing.
+5. In Zoom, Teams, Meet, OBS, your browser or the Camera app, choose **MobCam** as the camera.
+
+Paired devices are listed under **Paired PCs** on the phone and **Paired phones** in the PC app;
+*Forget* removes one. To pair again after forgetting, forget it on **both** sides.
 
 ## Features
 
 - **Up to 1080p at 30 fps**, hardware H.264 encoding on the phone and low-latency decoding on the PC
 - **Real Windows camera**: shows up as *MobCam* in every app, no OBS or plugins needed
 - **USB or Wi-Fi**, with automatic discovery and reconnection
+- **Private**: Wi-Fi needs a one-time pairing confirmed on both devices, and video and commands are
+  encrypted (AES-256-GCM), so others on the same network can't watch or control the camera
 - **Every lens**: ultra-wide, wide, telephoto and front camera, switchable from the phone or the PC
 - **Always upright**: follows how the phone is mounted; manual rotation and Fit/Fill framing too
 - **Remote control** of lens and quality from the PC
@@ -58,10 +66,10 @@ Get both files from the [latest release](https://github.com/Ishtiaqasif/mobcam/r
 ```
  phone (app/)                                    PC (pc/)
 ┌───────────────────────────┐   TCP :5000    ┌──────────────────────────────┐
-│ Expo / React Native UI    │  raw H.264     │ MobCam.exe (WPF)  mobcam-cli │
+│ Expo / React Native UI    │ H.264, AES-GCM │ MobCam.exe (WPF)  mobcam-cli │
 │ Kotlin module:            │ ─────────────▶ │        └── mobcam-core.dll   │
 │  Camera2 → MediaCodec     │ ◀───────────── │  decode, rotate, fit/fill    │
-│  TCP server, discovery    │  text commands │          │ shared memory      │
+│  TCP server, pairing      │    commands    │          │ shared memory      │
 └───────────────────────────┘  USB or Wi-Fi  │ mobcam-source.dll (Frame     │
                                              │  Server virtual camera)      │
                                              └──────────────────────────────┘
@@ -69,7 +77,8 @@ Get both files from the [latest release](https://github.com/Ishtiaqasif/mobcam/r
 
 The phone captures with Camera2 straight into the hardware H.264 encoder (no frame copies) and
 serves the stream over TCP. Over USB the PC tunnels it with `adb forward`; on Wi-Fi it finds the
-phone with a UDP broadcast. The PC decodes with Media Foundation, applies rotation and framing,
+phone with a UDP broadcast. Every connection starts with an authenticated key exchange (pairing
+on first use over Wi-Fi), and everything after it is encrypted. The PC decodes with Media Foundation, applies rotation and framing,
 and hands the frames to a Media Foundation virtual camera (`MFCreateVirtualCamera`, Windows 11)
 that Windows Frame Server exposes to all apps. Details: [docs/protocol.md](docs/protocol.md).
 
@@ -149,7 +158,19 @@ CI signs the APK with the key stored in the repository secrets `ANDROID_KEYSTORE
 - **Phone not found on Wi-Fi:** same network on both, MobCam open on the phone, firewall allowed.
   You can also type the phone's address (shown on the phone) in the PC app.
 - **USB not detected:** USB debugging on, prompt accepted, and a data cable (not charge-only).
+- **Phone says "A PC with an old MobCam version tried to connect"** (or the PC says the phone app
+  is too old): phone and PC apps from before pairing (1.0.0) can't talk to newer ones. Update both.
+  If you build from source, exit the installed MobCam from the tray first; the Start menu opens
+  the installed copy.
+- **PC says "This PC forgot the phone"**: the phone still trusts this PC. On the phone, open
+  **Paired PCs**, forget this PC, then connect again and pair.
+- **No pairing code appears:** the phone shows its prompt only for Wi-Fi connections from PCs it
+  doesn't know; USB and paired PCs connect without one. To pair again, forget on both sides.
+- **"Pairing was denied" / "cancelled" / "timed out":** nothing was saved; click **Connect** and
+  confirm on both devices within a minute.
 - Virtual camera log: `C:\ProgramData\MobCam\mobcam-source.log`.
+- Testing the raw stream with `ffplay tcp://<phone>:5000` no longer works: every connection is
+  encrypted (see [docs/protocol.md](docs/protocol.md)).
 
 ## Roadmap
 

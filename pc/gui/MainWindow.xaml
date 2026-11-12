@@ -82,6 +82,13 @@
                                    Text="Open the MobCam app on your phone, then click Connect." />
                         <ProgressBar x:Name="OverlayProgress" IsIndeterminate="True" Width="180" Margin="0,18,0,0"
                                      Visibility="Collapsed" />
+                        <!-- Two-sided pairing: this PC's user confirms the code too -->
+                        <StackPanel x:Name="PairingButtons" Orientation="Horizontal" HorizontalAlignment="Center"
+                                    Margin="0,20,0,0" Visibility="Collapsed">
+                            <Button x:Name="PairMatchButton" Content="Codes match" Style="{DynamicResource AccentButtonStyle}"
+                                    Padding="18,7" Margin="0,0,10,0" Click="OnPairMatch" />
+                            <Button x:Name="PairCancelButton" Content="Cancel" Padding="18,7" Click="OnPairCancel" />
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -227,6 +234,31 @@
                         </StackPanel>
                         <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0"
                                    Text="Fit shows the whole picture with bars; Fill crops it to cover the frame." />
+                    </StackPanel>
+                </Border>
+
+                <!-- Paired phones (Wi-Fi trust list) -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Paired phones" Style="{StaticResource CardTitle}" />
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,8"
+                                   Text="These phones connect over Wi-Fi without pairing again. USB never needs pairing." />
+                        <ItemsControl x:Name="PairedList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,4">
+                                        <Button DockPanel.Dock="Right" Content="Forget" Tag="{Binding}" Click="OnForgetPhone"
+                                                Padding="10,3" VerticalAlignment="Center" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Detail}" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="NoPairedText" Style="{StaticResource Caption}" Text="None yet." />
                     </StackPanel>
                 </Border>
 
