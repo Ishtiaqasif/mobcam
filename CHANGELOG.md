@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- Privacy statement ([PRIVACY.md](PRIVACY.md)): what MobCam stores, where, and how to remove it.
+  In short: no accounts, no analytics, and the video never leaves your phone and PC.
 
 ## [1.1.0] - 2026-11-12
 ### Security
