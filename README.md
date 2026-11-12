@@ -112,22 +112,35 @@ one before installing the other (`adb uninstall com.mobcam.app`).
 Development happens on `dev`; `main` only receives pull requests and holds released code
 (see [CONTRIBUTING.md](CONTRIBUTING.md#branches)).
 
-1. On `dev`, bump the version in `pc/gui/MobCam.csproj`, `app/app.json` (`version` and
-   `android.versionCode`) and add a section to [CHANGELOG.md](CHANGELOG.md). Open a pull
-   request `dev` → `main`, merge it once CI passes, and check out `main`.
-2. Build both installers into `dist\`:
-   ```powershell
-   npm run release
-   ```
-3. Tag and publish:
-   ```powershell
-   git tag v1.2.3; git push origin v1.2.3
-   gh release create v1.2.3 dist\MobCam-Setup-1.2.3.exe dist\MobCam-1.2.3.apk --title "MobCam 1.2.3" --notes-file <notes>
-   ```
+```
+feature ──PR──▶ dev ──PR "Release x.y.z"──▶ main ──tag vx.y.z──▶ GitHub Actions builds, signs, publishes
+```
 
-The APK is signed with `%USERPROFILE%\.mobcam\mobcam-release.jks` (created on the first release
-build, password in `keystore.properties` next to it). **Back both up**: Android only installs
-updates signed with the same key.
+1. **Bump on `dev`** (every change goes under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md)
+   as it lands):
+   ```powershell
+   npm run bump -- 1.2.3     # csproj + app.json version, Android versionCode + 1, CHANGELOG section
+   git commit -am "Release 1.2.3"; git push
+   ```
+2. **Pull request `dev` → `main`**, titled "Release 1.2.3". Merge it with a merge commit once CI
+   passes.
+3. **Tag `main`**:
+   ```powershell
+   git switch main; git pull; git tag v1.2.3; git push origin v1.2.3
+   ```
+   The [Release workflow](.github/workflows/release.yml) checks that the tag is on `main` and
+   matches the version and changelog, builds the signed APK and the installer, and publishes the
+   GitHub release with `SHA256SUMS.txt` and the changelog section as notes (about 15 minutes).
+   Tags like `v1.3.0-rc.1` become pre-releases.
+
+**Test builds without releasing:** GitHub → Actions → **Release** → *Run workflow* on any branch
+builds the same signed APK and installer and attaches them to the run as artifacts; nothing is
+published.
+
+CI signs the APK with the key stored in the repository secrets `ANDROID_KEYSTORE_BASE64` and
+`ANDROID_KEYSTORE_PASSWORD`. The same key lives locally in `%USERPROFILE%\.mobcam\`
+(`mobcam-release.jks` + `keystore.properties`) and is used by `npm run release` for local builds.
+**Keep an offline backup**: Android only installs updates signed with the same key.
 
 ## Troubleshooting
 
