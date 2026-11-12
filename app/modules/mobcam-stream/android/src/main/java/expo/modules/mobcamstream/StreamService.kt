@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.drawable.Icon
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
@@ -106,14 +107,16 @@ class StreamService : Service() {
       this, 1, Intent(this, StreamService::class.java).setAction(ACTION_STOP),
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
-    @Suppress("DEPRECATION") // Notification.Action.Builder needs API 23 icons; this works on all
+    val stopAction = Notification.Action.Builder(
+      Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel), "Stop", stop,
+    ).build()
     return builder
       .setSmallIcon(android.R.drawable.presence_video_online)
       .setContentTitle("MobCam is streaming")
       .setContentText("The camera stays on while the screen is off or another app is open.")
       .setOngoing(true)
       .setContentIntent(open)
-      .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stop)
+      .addAction(stopAction)
       .build()
   }
 
