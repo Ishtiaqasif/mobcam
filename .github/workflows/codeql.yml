@@ -1,0 +1,103 @@
+name: CodeQL
+
+# Static security analysis of all four languages. Results: Security → Code scanning.
+# C# and TypeScript are analysed from source; C++ and Kotlin need a real build, so they reuse
+# the same build steps as CI.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    - cron: '27 4 * * 1' # weekly, so new CodeQL queries also run on unchanged code
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [csharp, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+
+  cpp:
+    name: Analyze (c-cpp)
+    runs-on: windows-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+          queries: security-and-quality
+      - name: Build engine, virtual camera and CLI
+        shell: pwsh
+        run: ./pc/build.ps1
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:c-cpp
+
+  kotlin:
+    name: Analyze (java-kotlin)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Generate native project
+        working-directory: app
+        run: |
+          npm ci
+          npx expo prebuild --platform android --no-install
+        env:
+          CI: '1'
+      # Build the Expo/React Native modules before CodeQL starts watching, so only our own
+      # module's compilation (re-run below) is analysed, not third-party code in node_modules.
+      - name: Compile dependencies (not analysed)
+        working-directory: app/android
+        run: ./gradlew :mobcam-stream:compileReleaseKotlin --console=plain
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+          build-mode: manual
+          queries: security-and-quality
+      - name: Compile the MobCam native module
+        working-directory: app/android
+        run: ./gradlew :mobcam-stream:compileReleaseKotlin --rerun --console=plain
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:java-kotlin
