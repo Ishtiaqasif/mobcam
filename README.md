@@ -30,6 +30,9 @@ Get both files from the [latest release](https://github.com/Ishtiaqasif/mobcam/r
 ### Setup
 
 1. **PC:** run the installer. It installs the MobCam app and the **MobCam** virtual camera.
+   The installer isn't code-signed yet, so Windows may say *"Windows protected your PC"*: click
+   **More info → Run anyway**. To be sure the file is the real one, compare it with
+   `SHA256SUMS.txt` from the release (`Get-FileHash .\MobCam-Setup-<version>.exe`).
 2. **Phone:** open the APK and allow installing from this source when Android asks.
 3. Open MobCam on the phone, then on the PC. They find each other automatically:
    - **USB** (lowest delay, charges the phone): turn on **USB debugging** in the phone's
@@ -153,6 +156,10 @@ CI signs the APK with the key stored in the repository secrets `ANDROID_KEYSTORE
 
 ## Troubleshooting
 
+- **"Windows protected your PC" or an antivirus warning when installing:** the installer isn't
+  code-signed yet ([#17](https://github.com/Ishtiaqasif/mobcam/issues/17)). Click **More info →
+  Run anyway** after checking the file against `SHA256SUMS.txt` from the release. If your
+  antivirus blocks it, please report it as a false positive and open an issue.
 - **MobCam doesn't appear in my video app:** make sure MobCam.exe is running (tray icon). The
   camera exists only while it runs.
 - **Phone not found on Wi-Fi:** same network on both, MobCam open on the phone, firewall allowed.
