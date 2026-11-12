@@ -24,9 +24,9 @@ jobs:
       - name: PC and phone versions match
         shell: pwsh
         run: ./scripts/check-versions.ps1
-      - name: Build engine, virtual camera, CLI and app
+      - name: Build everything and run the unit tests (stream parsing, picture processing, protocol v2)
         shell: pwsh
-        run: ./pc/build.ps1
+        run: ./pc/build.ps1 -Test
 
   android:
     name: Phone app
@@ -51,6 +51,9 @@ jobs:
         run: npx expo prebuild --platform android --no-install
         env:
           CI: '1'
+      - name: Unit tests (SEI, lenses, protocol v2)
+        working-directory: app/android
+        run: ./gradlew :mobcam-stream:testDebugUnitTest --console=plain
       - name: Build release APK (unsigned check)
         working-directory: app/android
         run: ./gradlew assembleRelease --console=plain -PreactNativeArchitectures=arm64-v8a

@@ -9,6 +9,10 @@ uses [Semantic Versioning](https://semver.org/).
 - Privacy statement ([PRIVACY.md](PRIVACY.md)): what MobCam stores, where, and how to remove it.
   In short: no accounts, no analytics, and the video never leaves your phone and PC.
 
+### Security
+- The phone app now checks itself that a PC's session key is a valid P-256 point, instead of
+  relying on Android's crypto provider to reject invalid ones.
+
 ## [1.1.0] - 2026-11-12
 ### Security
 - **Wi-Fi pairing and encryption** (protocol v2). Others on the same Wi-Fi can no longer watch the

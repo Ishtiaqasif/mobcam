@@ -44,6 +44,11 @@ Keystore, Windows CNG `BCrypt`/`NCrypt`). Nothing home-made below the message le
 Encodings: public keys are uncompressed X9.62 points (`04 ‖ X ‖ Y`, 65 bytes). Signatures are raw
 `r ‖ s` (64 bytes, each big-endian, zero-padded; Android converts to/from DER). The ECDH secret is
 the 32-byte big-endian X coordinate. Integers are big-endian. Names are UTF-8, at most 64 bytes.
+Both sides reject public keys that are not points on P-256.
+
+Test vectors for the key schedule, the pairing code and records are in
+[tests/fixtures/protocol-v2.txt](../tests/fixtures/protocol-v2.txt) (the SEI in
+[sei.txt](../tests/fixtures/sei.txt)); both apps' unit tests check against them.
 
 ### Wire format
 
