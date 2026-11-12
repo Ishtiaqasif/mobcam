@@ -54,6 +54,8 @@ Paired devices are listed under **Paired PCs** on the phone and **Paired phones*
 - **Every lens**: ultra-wide, wide, telephoto and front camera, switchable from the phone or the PC
 - **Always upright**: follows how the phone is mounted; manual rotation and Fit/Fill framing too
 - **Remote control** of lens and quality from the PC
+- **Screen off is fine** (opt-in): *Keep streaming in background* on the phone keeps the camera
+  on with the screen off or another app open, with a notification to stop it
 - Live preview, tray mode and start with Windows
 - Command-line client (`mobcam-cli`) for scripting
 

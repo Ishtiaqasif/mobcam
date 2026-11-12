@@ -9,8 +9,10 @@ import {
   Modal,
   PermissionsAndroid,
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -153,6 +155,8 @@ function Streaming() {
             </Pressable>
           )}
         </View>
+
+        <BackgroundSwitch status={status} />
 
         {status.error ? <Text style={styles.error}>{status.error}</Text> : null}
         {status.notice ? <Text style={styles.notice}>{status.notice}</Text> : null}
@@ -382,6 +386,37 @@ function versionLabel(): string {
   return parts.join(' · ');
 }
 
+/** "Keep streaming in background" (opt-in, decision in #15). */
+function BackgroundSwitch({ status }: { status: MobcamStatus }) {
+  const toggle = async (on: boolean) => {
+    // Android 13+: the ongoing "MobCam is streaming" notification needs permission. Streaming
+    // works without it; the notification is just hidden.
+    if (on && Platform.OS === 'android' && Platform.Version >= 33) {
+      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    }
+    MobcamStream.setBackgroundStreaming(on);
+  };
+
+  return (
+    <View style={styles.block}>
+      <View style={styles.switchRow}>
+        <Text style={styles.switchLabel}>Keep streaming in background</Text>
+        <Switch
+          value={status.backgroundStreaming}
+          onValueChange={toggle}
+          trackColor={{ true: '#2b6fff', false: '#3a3f47' }}
+          thumbColor="#fff"
+        />
+      </View>
+      <Text style={styles.hint}>
+        {status.backgroundActive
+          ? 'On: the camera keeps streaming with the screen off. Stop it from the notification.'
+          : 'Keeps the camera on with the screen off or another app open, while a PC is connected. Uses more battery.'}
+      </Text>
+    </View>
+  );
+}
+
 function ConnectionLine({ status }: { status: MobcamStatus }) {
   let color = '#8a8f98';
   let text = 'Waiting for PC…';
@@ -483,6 +518,8 @@ const styles = StyleSheet.create({
   error: { color: '#ff5a5f', fontSize: 13 },
   notice: { color: '#f5b942', fontSize: 13 },
   link: { color: '#6f9bff', fontSize: 14, fontWeight: '600' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  switchLabel: { color: '#e6e8eb', fontSize: 14, flex: 1 },
   scrim: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

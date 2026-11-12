@@ -6,6 +6,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 ### Added
+- **Keep streaming in background** (phone, off by default): while a PC is connected, the camera
+  keeps streaming with the screen off or another app open. An ongoing notification shows it's on
+  and has a *Stop* button. If the PC goes away, it stops by itself after a minute. On Android 13+
+  MobCam asks to show notifications when you turn it on.
 - **About** in both apps (phone: below *Paired PCs*; Windows app: the App card): version, a
   short privacy summary, links to the project and the privacy statement, and the licences of the
   third-party software MobCam includes. The installer and the APK now ship
