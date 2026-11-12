@@ -22,6 +22,7 @@ import java.security.PublicKey
 import java.security.SecureRandom
 import java.security.Signature
 import java.security.interfaces.ECPublicKey
+import java.security.spec.ECFieldFp
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.ECParameterSpec
 import java.security.spec.ECPoint
@@ -108,8 +109,19 @@ object Crypto {
     if (bytes.size != Proto.KEY_LEN || bytes[0] != 4.toByte()) throw ProtocolException("bad public key")
     val x = BigInteger(1, bytes.copyOfRange(1, 33))
     val y = BigInteger(1, bytes.copyOfRange(33, 65))
-    // KeyFactory rejects points that are not on the curve.
+    // Checked here rather than trusting the provider: not every KeyFactory validates the point
+    // (the desktop JDK's doesn't), and an off-curve key would invite invalid-curve attacks.
+    if (!onCurve(x, y)) throw ProtocolException("public key is not on the curve")
     return KeyFactory.getInstance("EC").generatePublic(ECPublicKeySpec(ECPoint(x, y), p256))
+  }
+
+  /** y² = x³ + ax + b (mod p), with both coordinates in the field. */
+  private fun onCurve(x: BigInteger, y: BigInteger): Boolean {
+    val curve = p256.curve
+    val p = (curve.field as ECFieldFp).p
+    if (x.signum() < 0 || x >= p || y.signum() < 0 || y >= p) return false
+    val rhs = x.pow(3).add(curve.a.multiply(x)).add(curve.b).mod(p)
+    return y.multiply(y).mod(p) == rhs
   }
 
   fun ephemeral(): KeyPair =
@@ -127,6 +139,19 @@ object Crypto {
     require(length <= 32)
     return hmac(prk, info, byteArrayOf(1)).copyOf(length)
   }
+
+  class SessionKeys(val pcToPhone: ByteArray, val phoneToPc: ByteArray, val code: Int)
+
+  /** HKDF over the ECDH secret keyed with the transcript hash: both record keys and the pairing code. */
+  fun deriveKeys(transcriptHash: ByteArray, sharedSecret: ByteArray): SessionKeys {
+    val prk = hmac(transcriptHash, sharedSecret)
+    val code = (BigInteger(1, expand(prk, Proto.LABEL_CODE, 4)).toLong() % 1_000_000).toInt()
+    return SessionKeys(expand(prk, Proto.LABEL_PC_TO_PHONE, 32), expand(prk, Proto.LABEL_PHONE_TO_PC, 32), code)
+      .also { prk.fill(0) }
+  }
+
+  /** "482 913". Locale.ROOT: ASCII digits on every device, matching the PC (not Bengali/Arabic digits). */
+  fun formatCode(code: Int): String = String.format(Locale.ROOT, "%03d %03d", code / 1000, code % 1000)
 
   fun verify(key: PublicKey, message: ByteArray, rawSignature: ByteArray): Boolean = try {
     Signature.getInstance("SHA256withECDSA").run {
@@ -178,6 +203,52 @@ object Crypto {
     }
     val body = integer(raw.copyOfRange(0, 32)) + integer(raw.copyOfRange(32, 64))
     return byteArrayOf(0x30, body.size.toByte()) + body
+  }
+}
+
+/**
+ * AES-256-GCM records: 4-byte big-endian length (also the AAD), then ciphertext and tag of
+ * type ‖ payload. The nonce is the record counter, so each direction has its own instance.
+ * Not thread-safe: one writer thread, one reader thread.
+ */
+class RecordCipher(key: ByteArray) {
+  private val key = SecretKeySpec(key, "AES")
+  private var counter = 0L
+
+  /** One whole record, header included. */
+  fun seal(type: Int, payload: ByteArray): ByteArray {
+    val total = 1 + payload.size + 16
+    val record = ByteArray(4 + total)
+    record[0] = (total ushr 24).toByte(); record[1] = (total ushr 16).toByte()
+    record[2] = (total ushr 8).toByte(); record[3] = total.toByte()
+    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+    cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, nonce()))
+    cipher.updateAAD(record, 0, 4)
+    var n = 4 + cipher.update(byteArrayOf(type.toByte()), 0, 1, record, 4)
+    n += cipher.update(payload, 0, payload.size, record, n)
+    cipher.doFinal(record, n)
+    return record
+  }
+
+  /** [sealed] = the record after its 4-byte [header]. Returns (type, payload); throws if it was tampered with. */
+  fun open(header: ByteArray, sealed: ByteArray): Pair<Int, ByteArray> {
+    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+    cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, nonce()))
+    cipher.updateAAD(header)
+    val plain = try {
+      cipher.doFinal(sealed)
+    } catch (e: Exception) {
+      throw ProtocolException("record authentication failed")
+    }
+    if (plain.isEmpty()) throw ProtocolException("empty record")
+    return (plain[0].toInt() and 0xFF) to plain.copyOfRange(1, plain.size)
+  }
+
+  private fun nonce(): ByteArray {
+    val c = counter++
+    val n = ByteArray(12)
+    for (i in 0 until 8) n[11 - i] = (c ushr (8 * i)).toByte()
+    return n
   }
 }
 
@@ -242,10 +313,8 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
   private val output: OutputStream = socket.getOutputStream()
   private val transcript = ByteArrayOutputStream()
 
-  private lateinit var sendKey: SecretKeySpec
-  private lateinit var recvKey: SecretKeySpec
-  private var sendCounter = 0L
-  private var recvCounter = 0L
+  private lateinit var sendCipher: RecordCipher
+  private lateinit var recvCipher: RecordCipher
 
   var pc: PcHello? = null
     private set
@@ -314,13 +383,10 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
     val ePc = Crypto.decodePoint(ePcBytes)
 
     // Keys and code.
-    val prk = Crypto.hmac(h, Crypto.ecdh(eph.private, ePc))
-    recvKey = SecretKeySpec(Crypto.expand(prk, Proto.LABEL_PC_TO_PHONE, 32), "AES")
-    sendKey = SecretKeySpec(Crypto.expand(prk, Proto.LABEL_PHONE_TO_PC, 32), "AES")
-    val codeBytes = Crypto.expand(prk, Proto.LABEL_CODE, 4)
-    val codeValue = (BigInteger(1, codeBytes).toLong() % 1_000_000).toInt()
-    // Locale.ROOT: ASCII digits on every device, matching the PC (e.g. not Bengali/Arabic digits).
-    val code = String.format(Locale.ROOT, "%03d %03d", codeValue / 1000, codeValue % 1000)
+    val keys = Crypto.deriveKeys(h, Crypto.ecdh(eph.private, ePc))
+    recvCipher = RecordCipher(keys.pcToPhone)
+    sendCipher = RecordCipher(keys.phoneToPc)
+    val code = Crypto.formatCode(keys.code)
 
     val hello = PcHello(pcKeyBytes, pcName.ifBlank { "PC" })
     pc = hello
@@ -370,18 +436,7 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
 
   /** Encrypts and writes one record. Writer thread only. The caller flushes. */
   fun writeRecord(type: Int, payload: ByteArray, out: OutputStream) {
-    val plainLen = 1 + payload.size
-    val total = plainLen + 16
-    val header = intBytes(total)
-    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-    cipher.init(Cipher.ENCRYPT_MODE, sendKey, GCMParameterSpec(128, nonce(sendCounter++)))
-    cipher.updateAAD(header)
-    val sealed = ByteArray(total)
-    var n = cipher.update(byteArrayOf(type.toByte()), 0, 1, sealed, 0)
-    n += cipher.update(payload, 0, payload.size, sealed, n)
-    cipher.doFinal(sealed, n)
-    out.write(header)
-    out.write(sealed)
+    out.write(sendCipher.seal(type, payload))
   }
 
   /** Reads and decrypts one record: returns (type, payload). Reader thread only. */
@@ -392,15 +447,7 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
     if (total < 17 || total > Proto.MAX_RECORD) throw ProtocolException("bad record length $total")
     val sealed = ByteArray(total)
     input.readFully(sealed)
-    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-    cipher.init(Cipher.DECRYPT_MODE, recvKey, GCMParameterSpec(128, nonce(recvCounter++)))
-    cipher.updateAAD(header)
-    val plain = try {
-      cipher.doFinal(sealed)
-    } catch (e: Exception) {
-      throw ProtocolException("record authentication failed")
-    }
-    return (plain[0].toInt() and 0xFF) to plain.copyOfRange(1, plain.size)
+    return recvCipher.open(header, sealed)
   }
 
   // ---- handshake framing
@@ -434,12 +481,6 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
       throw ProtocolException("connection closed during handshake")
     }
     return buf
-  }
-
-  private fun nonce(counter: Long): ByteArray {
-    val n = ByteArray(12)
-    for (i in 0 until 8) n[11 - i] = (counter ushr (8 * i)).toByte()
-    return n
   }
 
   private fun intBytes(v: Int) = byteArrayOf((v ushr 24).toByte(), (v ushr 16).toByte(), (v ushr 8).toByte(), v.toByte())

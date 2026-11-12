@@ -6,6 +6,9 @@ contact_links:
   - name: 💡 Idea
     url: https://github.com/Ishtiaqasif/mobcam/discussions/categories/ideas
     about: Suggest and vote on ideas in Discussions → Ideas
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/Ishtiaqasif/mobcam/security/advisories/new
+    about: Report privately, not in a public issue (see SECURITY.md)
   - name: 🗺️ Roadmap
     url: https://github.com/Ishtiaqasif/mobcam/issues/21
     about: What's planned and in progress

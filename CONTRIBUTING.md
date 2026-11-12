@@ -8,6 +8,12 @@ Open an issue with the **Bug report** template. Please include your phone model 
 version, your Windows build, whether you use USB or Wi-Fi, and, for camera problems, the log at
 `C:\ProgramData\MobCam\mobcam-source.log`.
 
+**Security problems** (for example watching the camera without pairing) go through a
+[private report](https://github.com/Ishtiaqasif/mobcam/security/advisories/new), not a public
+issue; see [SECURITY.md](SECURITY.md).
+
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Development setup
 
 Everything builds from the command line on Windows 11; see
@@ -17,6 +23,8 @@ Everything builds from the command line on Windows 11; see
 npm run phone           # debug build of the phone app on a USB-connected phone
 npm run pc:run          # build and start the Windows app
 npm run phone:typecheck
+npm run pc:test         # PC unit tests
+npm run phone:test      # phone unit tests (no phone needed)
 ```
 
 ## Questions and ideas
@@ -55,7 +63,11 @@ moves it to **Done** on the board.
 - The phone and the PC talk over the protocol in [docs/protocol.md](docs/protocol.md). If you
   change one side, update the other side and the document in the same pull request, and keep
   older peers working where you can.
-- CI must pass (PC build, phone typecheck, third-party notices and Android build).
+- CI must pass (PC build and tests, phone typecheck, tests, third-party notices and Android
+  build). Run the tests locally with `npm run pc:test` and `npm run phone:test`.
+- Changing the protocol bytes (SEI, handshake, records) on purpose? Update
+  `tests/fixtures/gen_fixtures.py`, regenerate with `python tests/fixtures/gen_fixtures.py`, and
+  commit the fixtures with both sides' changes.
 - New dependencies need a licence compatible with MIT. Their notices are collected
   automatically by `scripts/notices.ps1`; if CI says it can't place an Android library's
   licence, add the text to `scripts/licenses/` and the table in the script.

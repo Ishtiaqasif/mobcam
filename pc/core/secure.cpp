@@ -272,67 +272,6 @@ void AddPaired(const Bytes& key, const std::string& name) {
   RegCloseKey(h);
 }
 
-// ---------------------------------------------------------------- AES-GCM
-
-class Gcm {
- public:
-  ~Gcm() { Clear(); }
-  bool Init(const Bytes& key) {
-    Clear();
-    counter_ = 0;
-    return BCRYPT_SUCCESS(BCryptGenerateSymmetricKey(Alg().aesGcm, &key_, nullptr, 0, (PUCHAR)key.data(), ULONG(key.size()), 0));
-  }
-  void Clear() {
-    if (key_) BCryptDestroyKey(key_);
-    key_ = nullptr;
-  }
-  bool ready() const { return key_ != nullptr; }
-
-  // header = 4-byte length (AAD). out = ciphertext ‖ tag.
-  bool Seal(const uint8_t header[4], const Bytes& plain, uint8_t* out) {
-    uint8_t nonce[12];
-    Nonce(nonce);
-    BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;
-    BCRYPT_INIT_AUTH_MODE_INFO(info);
-    info.pbNonce = nonce;
-    info.cbNonce = 12;
-    info.pbAuthData = (PUCHAR)header;
-    info.cbAuthData = 4;
-    info.pbTag = out + plain.size();
-    info.cbTag = 16;
-    ULONG cb = 0;
-    return BCRYPT_SUCCESS(BCryptEncrypt(key_, (PUCHAR)plain.data(), ULONG(plain.size()), &info, nullptr, 0, out,
-                                        ULONG(plain.size()), &cb, 0));
-  }
-
-  bool Open(const uint8_t header[4], const uint8_t* sealed, size_t sealedLen, Bytes& plain) {
-    if (sealedLen < 17) return false;
-    const size_t n = sealedLen - 16;
-    plain.resize(n);
-    uint8_t nonce[12];
-    Nonce(nonce);
-    BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;
-    BCRYPT_INIT_AUTH_MODE_INFO(info);
-    info.pbNonce = nonce;
-    info.cbNonce = 12;
-    info.pbAuthData = (PUCHAR)header;
-    info.cbAuthData = 4;
-    info.pbTag = (PUCHAR)sealed + n;
-    info.cbTag = 16;
-    ULONG cb = 0;
-    return BCRYPT_SUCCESS(BCryptDecrypt(key_, (PUCHAR)sealed, ULONG(n), &info, nullptr, 0, plain.data(), ULONG(n), &cb, 0));
-  }
-
- private:
-  void Nonce(uint8_t nonce[12]) {
-    std::fill(nonce, nonce + 4, uint8_t(0));
-    const uint64_t c = counter_++;
-    for (int i = 0; i < 8; ++i) nonce[11 - i] = uint8_t(c >> (8 * i));
-  }
-  BCRYPT_KEY_HANDLE key_ = nullptr;
-  uint64_t counter_ = 0;
-};
-
 // ---------------------------------------------------------------- blocking socket I/O
 
 void SetTimeout(SOCKET s, DWORD ms) {
@@ -359,7 +298,118 @@ bool RecvAll(SOCKET s, uint8_t* p, size_t n) {
   return true;
 }
 
+// ECDH: X coordinate of the shared point, big-endian like the phone's KeyAgreement; empty on error.
+Bytes Agree(BCRYPT_KEY_HANDLE own, const uint8_t* peerPoint) {
+  BCRYPT_KEY_HANDLE peer = ImportPoint(Alg().ecdh, BCRYPT_ECDH_PUBLIC_P256_MAGIC, peerPoint);
+  if (!peer) return {};
+  BCRYPT_SECRET_HANDLE secret = nullptr;
+  const bool agreed = BCRYPT_SUCCESS(BCryptSecretAgreement(own, peer, &secret, 0));
+  BCryptDestroyKey(peer);
+  if (!agreed) return {};
+  Bytes z(32);
+  ULONG cb = 0;
+  const bool derived = BCRYPT_SUCCESS(BCryptDeriveKey(secret, BCRYPT_KDF_RAW_SECRET, nullptr, z.data(), 32, &cb, 0)) && cb == 32;
+  BCryptDestroySecret(secret);
+  if (!derived) return {};
+  std::reverse(z.begin(), z.end());  // CNG returns the raw secret little-endian
+  return z;
+}
+
 }  // namespace
+
+// ---------------------------------------------------------------- protocol v2 building blocks
+
+namespace v2 {
+
+SessionKeys DeriveKeys(const Bytes& transcriptHash, const Bytes& sharedSecret) {
+  Bytes prk = Hmac(transcriptHash, sharedSecret);
+  SessionKeys keys;
+  keys.pcToPhone = Expand(prk, "MOBCAM v2 pc->phone", 32);
+  keys.phoneToPc = Expand(prk, "MOBCAM v2 phone->pc", 32);
+  keys.code = int(GetU32(Expand(prk, "MOBCAM v2 code", 4).data()) % 1000000u);
+  SecureZeroMemory(prk.data(), prk.size());
+  return keys;
+}
+
+Bytes Ecdh(const Bytes& privateScalar, const Bytes& publicPoint, const Bytes& peerPoint) {
+  if (privateScalar.size() != 32 || publicPoint.size() != kKeyLen || peerPoint.size() != kKeyLen) return {};
+  Bytes blob(sizeof(BCRYPT_ECCKEY_BLOB) + 96);
+  auto* h = reinterpret_cast<BCRYPT_ECCKEY_BLOB*>(blob.data());
+  h->dwMagic = BCRYPT_ECDH_PRIVATE_P256_MAGIC;
+  h->cbKey = 32;
+  memcpy(blob.data() + sizeof(BCRYPT_ECCKEY_BLOB), publicPoint.data() + 1, 64);  // X ‖ Y
+  memcpy(blob.data() + sizeof(BCRYPT_ECCKEY_BLOB) + 64, privateScalar.data(), 32);  // d
+  BCRYPT_KEY_HANDLE own = nullptr;
+  if (!BCRYPT_SUCCESS(BCryptImportKeyPair(Alg().ecdh, nullptr, BCRYPT_ECCPRIVATE_BLOB, &own, blob.data(), ULONG(blob.size()), 0)))
+    return {};
+  Bytes z = Agree(own, peerPoint.data());
+  BCryptDestroyKey(own);
+  return z;
+}
+
+bool RecordCipher::Init(const Bytes& key) {
+  Clear();
+  counter_ = 0;
+  return BCRYPT_SUCCESS(BCryptGenerateSymmetricKey(Alg().aesGcm, &key_, nullptr, 0, (PUCHAR)key.data(), ULONG(key.size()), 0));
+}
+
+void RecordCipher::Clear() {
+  if (key_) BCryptDestroyKey(key_);
+  key_ = nullptr;
+}
+
+bool RecordCipher::Seal(uint8_t type, const uint8_t* payload, size_t length, Bytes& record) {
+  if (!key_) return false;
+  Bytes plain;
+  plain.reserve(1 + length);
+  plain.push_back(type);
+  if (length) plain.insert(plain.end(), payload, payload + length);
+  const size_t at = record.size();
+  PutU32(record, uint32_t(plain.size() + 16));
+  record.resize(at + 4 + plain.size() + 16);
+  uint8_t* header = record.data() + at;
+  uint8_t* out = header + 4;
+
+  uint8_t nonce[12];
+  Nonce(nonce);
+  BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;
+  BCRYPT_INIT_AUTH_MODE_INFO(info);
+  info.pbNonce = nonce;
+  info.cbNonce = 12;
+  info.pbAuthData = header;
+  info.cbAuthData = 4;
+  info.pbTag = out + plain.size();
+  info.cbTag = 16;
+  ULONG cb = 0;
+  return BCRYPT_SUCCESS(BCryptEncrypt(key_, plain.data(), ULONG(plain.size()), &info, nullptr, 0, out,
+                                      ULONG(plain.size()), &cb, 0));
+}
+
+bool RecordCipher::Open(const uint8_t header[4], const uint8_t* sealed, size_t sealedLen, Bytes& plain) {
+  if (!key_ || sealedLen < 17) return false;
+  const size_t n = sealedLen - 16;
+  plain.resize(n);
+  uint8_t nonce[12];
+  Nonce(nonce);
+  BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;
+  BCRYPT_INIT_AUTH_MODE_INFO(info);
+  info.pbNonce = nonce;
+  info.cbNonce = 12;
+  info.pbAuthData = (PUCHAR)header;
+  info.cbAuthData = 4;
+  info.pbTag = (PUCHAR)sealed + n;
+  info.cbTag = 16;
+  ULONG cb = 0;
+  return BCRYPT_SUCCESS(BCryptDecrypt(key_, (PUCHAR)sealed, ULONG(n), &info, nullptr, 0, plain.data(), ULONG(n), &cb, 0));
+}
+
+void RecordCipher::Nonce(uint8_t nonce[12]) {
+  std::fill(nonce, nonce + 4, uint8_t(0));
+  const uint64_t c = counter_++;
+  for (int i = 0; i < 8; ++i) nonce[11 - i] = uint8_t(c >> (8 * i));
+}
+
+}  // namespace v2
 
 // ---------------------------------------------------------------- public: paired phones
 
@@ -397,21 +447,15 @@ bool ForgetPairedPhone(const std::wstring& id) {
 struct SecureSession::Impl {
   std::mutex sendMu;
   SOCKET socket = INVALID_SOCKET;  // guarded by sendMu after the handshake
-  Gcm send, recv;
+  v2::RecordCipher send, recv;
   Bytes pending;  // received bytes not yet forming a whole record
   Bytes plain;
 
   // Encrypts and sends one record. Caller holds sendMu.
   bool SendRecordLocked(uint8_t type, const uint8_t* payload, size_t length) {
     if (socket == INVALID_SOCKET || !send.ready()) return false;
-    Bytes p;
-    p.reserve(1 + length);
-    p.push_back(type);
-    p.insert(p.end(), payload, payload + length);
     Bytes record;
-    PutU32(record, uint32_t(p.size() + 16));
-    record.resize(4 + p.size() + 16);
-    if (!send.Seal(record.data(), p, record.data() + 4)) return false;
+    if (!send.Seal(type, payload, length, record)) return false;
     return SendAll(socket, record.data(), record.size());
   }
 };
@@ -524,23 +568,11 @@ HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const PairingHooks&
   if (!sendMessage(kMsgPcAuth, sigPc, false)) return fail("connection lost");
 
   // Shared secret and keys.
-  BCRYPT_KEY_HANDLE peer = ImportPoint(Alg().ecdh, BCRYPT_ECDH_PUBLIC_P256_MAGIC, ePhone);
-  if (!peer) return fail("bad session key from the phone");
-  KeyGuard peerGuard{peer};
-  BCRYPT_SECRET_HANDLE secret = nullptr;
-  if (!BCRYPT_SUCCESS(BCryptSecretAgreement(eph, peer, &secret, 0))) return fail("key agreement failed");
-  Bytes z(32);
-  ULONG cb = 0;
-  const bool derived = BCRYPT_SUCCESS(BCryptDeriveKey(secret, BCRYPT_KDF_RAW_SECRET, nullptr, z.data(), 32, &cb, 0)) && cb == 32;
-  BCryptDestroySecret(secret);
-  if (!derived) return fail("key agreement failed");
-  std::reverse(z.begin(), z.end());  // CNG returns the raw secret little-endian
-  const Bytes prk = Hmac(h, z);
+  Bytes z = Agree(eph, ePhone);
+  if (z.empty()) return fail("bad session key from the phone");
+  const v2::SessionKeys keys = v2::DeriveKeys(h, z);
   SecureZeroMemory(z.data(), z.size());
-  const Bytes kSend = Expand(prk, "MOBCAM v2 pc->phone", 32);
-  const Bytes kRecv = Expand(prk, "MOBCAM v2 phone->pc", 32);
-  const Bytes codeBytes = Expand(prk, "MOBCAM v2 code", 4);
-  const int code = int(GetU32(codeBytes.data()) % 1000000u);
+  const int code = keys.code;
 
   // PAIRING? then PHONE_AUTH or DENIED.
   Bytes body;
@@ -575,7 +607,7 @@ HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const PairingHooks&
 
   SetTimeout(s, kStreamTimeoutMs);
   std::lock_guard<std::mutex> g(impl_->sendMu);
-  if (!impl_->send.Init(kSend) || !impl_->recv.Init(kRecv)) return fail("cannot set up encryption");
+  if (!impl_->send.Init(keys.pcToPhone) || !impl_->recv.Init(keys.phoneToPc)) return fail("cannot set up encryption");
   impl_->socket = s;
   // Tells the phone both users confirmed; it remembers this PC and starts the video only then.
   if (out.newlyPaired && !impl_->SendRecordLocked(kRecPaired, nullptr, 0)) return fail("connection lost");

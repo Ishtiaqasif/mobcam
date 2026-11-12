@@ -31,14 +31,6 @@ private const val TAG = "MobcamEngine"
 private const val MIME = MediaFormat.MIMETYPE_VIDEO_AVC
 private const val FPS = 30
 
-/** 16-byte SEI UUID identifying MobCam rotation metadata ("MOBCAM-ROTATION!"). */
-val SEI_UUID: ByteArray = "MOBCAM-ROTATION!".toByteArray(Charsets.US_ASCII)
-
-/** 16-byte SEI UUID for the lens list ("MOBCAM-LENSLIST!"). */
-val LENS_UUID: ByteArray = "MOBCAM-LENSLIST!".toByteArray(Charsets.US_ASCII)
-
-/** H.264 access unit delimiter (primary_pic_type = 7). */
-private val AUD = byteArrayOf(0, 0, 0, 1, 0x09, 0xF0.toByte())
 
 enum class Facing(val js: String) { BACK("back"), FRONT("front") }
 
@@ -252,7 +244,7 @@ class StreamEngine(context: Context) {
       tagLensIndex = lensIndex
       zoomSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
         chars.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) != null
-      if (lensListSei.isEmpty()) lensListSei = buildLensListSei()
+      if (lensListSei.isEmpty()) lensListSei = Sei.lensList(lenses)
 
       val codec = MediaCodec.createEncoderByType(MIME)
       encoder = codec
@@ -469,7 +461,7 @@ class StreamEngine(context: Context) {
               val sei = rotationSei(currentRotation())
               // Trailing access unit delimiter marks the frame as complete for the receiver.
               // Keyframes also carry the lens list so a newly connected PC learns it within ~1 s.
-              val frame = if (key && cfg != null) cfg + lensListSei + sei + bytes + AUD else sei + bytes + AUD
+              val frame = if (key && cfg != null) cfg + lensListSei + sei + bytes + Sei.AUD else sei + bytes + Sei.AUD
               sink?.onFrame(frame, key)
             }
           }
@@ -500,36 +492,13 @@ class StreamEngine(context: Context) {
   private var seiKey = ""
   private var seiBytes = ByteArray(0)
 
-  /**
-   * H.264 SEI "user data unregistered" NAL with phone metadata. Decoders ignore it; the MobCam
-   * PC app reads it. Payload after the UUID is ASCII: rotation digit ('0'..'3' x90), facing
-   * ('b'/'f'), 4-digit target height ("0720"), 2-digit lens index. No 00 00 byte pair, so no
-   * emulation prevention is needed.
-   */
+  /** Metadata SEI for this frame (see [Sei.metadata]); rebuilt only when something changed. */
   private fun rotationSei(rotation: Int): ByteArray {
-    val info = "${(rotation / 90) and 3}${if (frontFacing) 'f' else 'b'}" +
-      tagTargetHeight.toString().padStart(4, '0') + tagLensIndex.coerceIn(0, 99).toString().padStart(2, '0')
+    val info = Sei.metadataText(rotation, frontFacing, tagTargetHeight, tagLensIndex)
     if (info == seiKey) return seiBytes
-    seiBytes = userDataSei(SEI_UUID, info)
+    seiBytes = Sei.userData(Sei.METADATA_UUID, info)
     seiKey = info
     return seiBytes
-  }
-
-  /** "label,zoom,b|f;..." in lens-index order, e.g. "Ultra-wide,0.67,b;Wide,1,b;Telephoto,3.4,b;Front,1,f". */
-  private fun buildLensListSei(): ByteArray {
-    val sb = StringBuilder()
-    for (lens in lenses) {
-      val entry = "${lens.label.replace(',', ' ').replace(';', ' ')},${formatZoom(lens.zoom)},${if (lens.front) 'f' else 'b'}"
-      if (sb.length + entry.length + 1 > 220) break  // keep the SEI payload under 255 bytes
-      if (sb.isNotEmpty()) sb.append(';')
-      sb.append(entry)
-    }
-    return userDataSei(LENS_UUID, sb.toString())
-  }
-
-  private fun userDataSei(uuid: ByteArray, text: String): ByteArray {
-    val payload = uuid + text.toByteArray(Charsets.US_ASCII)
-    return byteArrayOf(0, 0, 0, 1, 0x06, 0x05, payload.size.toByte()) + payload + byteArrayOf(0x80.toByte())
   }
 
   private fun ByteBuffer.toBytes(): ByteArray {
