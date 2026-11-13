@@ -1,10 +1,11 @@
 # Privacy
 
-_Last updated: 2026-11-13. Applies to the MobCam phone app (Android) and the MobCam Windows app._
+_Last updated: 2026-11-14. Applies to the MobCam phone app (Android) and the MobCam Windows app._
 
 **In short:** MobCam has no accounts, no analytics, no ads and no servers. Your video goes from
 your phone to your own PC, over the USB cable or your local network, and nowhere else. MobCam's
-developers never see it, and neither does anyone else.
+developers never see it, and neither does anyone else. The only time MobCam goes online is to ask
+GitHub for the latest version number, and only if you allow it.
 
 ## What MobCam does with your camera
 
@@ -26,10 +27,17 @@ developers never see it, and neither does anyone else.
   discovery requests (UDP), so the PC can find it. The discovery reply contains the phone's
   model name (for example "Google Pixel 8"), which any device on the same network can ask for.
 - Over USB, the Windows app uses `adb` (Android's own tool) to reach the phone through the cable.
-- **Neither app connects to the internet.** There is no telemetry, crash reporting or
-  advertising code. If an optional "new version available" check is added later
-  ([#16](https://github.com/Ishtiaqasif/mobcam/issues/16)), it will only ask GitHub for the
-  latest release number, can be turned off, and will be described here before it ships.
+- **New version check, only if you allow it.** The first time each app starts, it asks whether
+  to check for new versions. If you say yes, it asks GitHub once a day for the latest release
+  (`api.github.com/repos/Ishtiaqasif/mobcam/releases/latest`) and shows a notice when there is a
+  newer one. The request contains only what any web request does: your IP address and the app's
+  name and version (for example `MobCam/1.2.0`), which GitHub's
+  [privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)
+  covers. Nothing is downloaded or installed: *Download* opens the release page in your browser.
+  Turn it off any time: *Check GitHub for new versions* in the Windows app's App section, or in
+  *About* on the phone.
+- **Nothing else connects to the internet.** There is no telemetry, crash reporting or
+  advertising code.
 
 ## What is stored, and where
 
@@ -38,8 +46,8 @@ Everything stays on your own devices.
 | Where | What |
 |---|---|
 | Phone, Android Keystore | The phone's pairing key. |
-| Phone, app storage | For each paired PC: its name, an ID derived from its public key, and the pairing date. Whether *Keep streaming in background* is on. |
-| PC, `%AppData%\MobCam\settings.json` | Preferences: auto-connect, tray, rotation, Fit/Fill, connection mode, the last address you typed. |
+| Phone, app storage | For each paired PC: its name, an ID derived from its public key, and the pairing date. Whether *Keep streaming in background* is on. Your answer to the version check, and if it's on: when it last checked, the latest version and its page, and a version you chose *Later* for. |
+| PC, `%AppData%\MobCam\settings.json` | Preferences: auto-connect, tray, rotation, Fit/Fill, connection mode, the last address you typed. Your answer to the version check, and if it's on: when it last checked, the latest version and its page, and a version you chose *Later* for. |
 | PC, registry `HKCU\Software\MobCam\PairedPhones` | For each paired phone: its name, public key and pairing date. |
 | PC, Windows key store (per user) | The PC's pairing key, "MobCam PC identity v1". |
 | PC, `%ProgramData%\MobCam\mobcam-source.log` | Technical log of the virtual camera (start/stop, formats, errors). No pictures. |

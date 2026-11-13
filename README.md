@@ -69,9 +69,10 @@ Paired devices are listed under **Paired PCs** on the phone and **Paired phones*
 ## Privacy
 
 No accounts, no analytics, no ads, no servers. The video goes from your phone to your own PC,
-over the USB cable or your local network, and is never recorded or sent anywhere else. Neither
-app connects to the internet. Pairings and settings stay on your devices. Details, including
-what is stored where and how to remove it: [PRIVACY.md](PRIVACY.md).
+over the USB cable or your local network, and is never recorded or sent anywhere else. The only
+time MobCam goes online is to ask GitHub for the latest version number, and only if you allow it
+(each app asks once). Pairings and settings stay on your devices. Details, including what is
+stored where and how to remove it: [PRIVACY.md](PRIVACY.md).
 
 ## How it works
 

@@ -168,6 +168,20 @@ class MobcamStreamModule : Module() {
     }
 
     /**
+     * Small app settings kept by the JS side (e.g. the update check, #16), in the same private
+     * SharedPreferences as the background setting. Keys are prefixed so they can't collide.
+     */
+    Function("getAppSetting") { key: String ->
+      context.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE).getString("app.$key", null)
+    }
+
+    Function("setAppSetting") { key: String, value: String? ->
+      val prefs = context.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE).edit()
+      if (value == null) prefs.remove("app.$key") else prefs.putString("app.$key", value)
+      prefs.apply()
+    }
+
+    /**
      * THIRD-PARTY-NOTICES.txt from the APK's assets, or null in builds made without
      * scripts/notices.ps1 (development builds).
      */

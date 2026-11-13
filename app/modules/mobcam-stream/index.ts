@@ -76,6 +76,9 @@ declare class MobcamStreamModule extends NativeModule<MobcamEvents> {
   /** Keep streaming with the screen off or another app open, while a PC is connected. */
   setBackgroundStreaming(on: boolean): void;
   getStatus(): MobcamStatus;
+  /** Small persisted app settings for the JS side (private to the app). null = not set. */
+  getAppSetting(key: string): string | null;
+  setAppSetting(key: string, value: string | null): void;
   respondPairing(id: number, allow: boolean): void;
   getPendingPairing(): PairingRequest | null;
   getPairedPcs(): PairedPc[];

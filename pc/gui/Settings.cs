@@ -16,6 +16,17 @@ public sealed class Settings
     public string Host { get; set; } = "";
     public bool TrayHintShown { get; set; }
 
+    // ---- "New version available" (UpdateCheck)
+    /// <summary>null = not asked yet (asked on first launch), true/false = the user's answer.</summary>
+    public bool? CheckForUpdates { get; set; }
+    public DateTime LastUpdateCheck { get; set; }
+    /// <summary>Latest release seen on GitHub, so the notice shows without asking again.</summary>
+    public string LatestVersion { get; set; } = "";
+    public string LatestUrl { get; set; } = "";
+    /// <summary>A version the user chose "Later" for; the notice returns for newer versions.</summary>
+    public string SkippedVersion { get; set; } = "";
+    public string NotifiedVersion { get; set; } = "";
+
     private static string FilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MobCam", "settings.json");
 

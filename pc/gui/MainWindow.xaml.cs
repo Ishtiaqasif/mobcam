@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -39,6 +40,9 @@ public partial class MainWindow : Window
     private readonly WriteableBitmap _preview =
         new(PreviewWidth, PreviewHeight, 96, 96, PixelFormats.Bgra32, null);
     private readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    // Wakes up hourly; UpdateCheck itself runs at most once a day (MobCam may sit in the tray for weeks).
+    private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(1) };
+    private bool _updateChecking;
     private readonly ObservableCollection<DeviceItem> _devices = new();
     private readonly ObservableCollection<PairedPhoneItem> _paired = new();
 
@@ -86,12 +90,18 @@ public partial class MainWindow : Window
 
         if (_settings.AutoConnect) Connect(_settings.Mode, _settings.Mode == Native.LinkWifi ? _settings.Host : "");
         UpdateStatus();
+
+        RefreshUpdateCard();
+        _updateTimer.Tick += async (_, _) => await CheckForUpdatesAsync();
+        _updateTimer.Start();
+        _ = CheckForUpdatesAsync();
     }
 
     public void Shutdown()
     {
         _shuttingDown = true;
         _statusTimer.Stop();
+        _updateTimer.Stop();
         CompositionTarget.Rendering -= OnRendering;
         _settings.Save();
         Close();
@@ -543,6 +553,104 @@ public partial class MainWindow : Window
             StartupBox.IsChecked = Settings.StartWithWindows;
         }
         _settings.Save();
+    }
+
+    // ================================================================ new version available (#16)
+
+    /// <summary>The latest release on GitHub if it's newer than this build and not skipped, else null.</summary>
+    private Version? AvailableUpdate =>
+        _settings.CheckForUpdates == true && UpdateCheck.ParseVersion(_settings.LatestVersion) is { } latest &&
+        latest > UpdateCheck.Current && _settings.LatestVersion != _settings.SkippedVersion
+            ? latest
+            : null;
+
+    /// <summary>Asks GitHub when the user agreed and a day has passed (or <paramref name="now"/>).</summary>
+    private async Task CheckForUpdatesAsync(bool now = false)
+    {
+        if (_settings.CheckForUpdates != true || _updateChecking) return;
+        if (!now && DateTime.UtcNow - _settings.LastUpdateCheck < UpdateCheck.Interval) return;
+        _updateChecking = true;
+        try
+        {
+            // Unreachable (offline, GitHub down): try again at the next hourly tick.
+            if (await UpdateCheck.FetchLatestAsync() is not { } latest || _shuttingDown) return;
+            _settings.LastUpdateCheck = DateTime.UtcNow;
+            _settings.LatestVersion = latest.Version.ToString();
+            _settings.LatestUrl = latest.Url;
+            _settings.Save();
+            RefreshUpdateCard();
+            if (AvailableUpdate is { } version && !IsVisible && _settings.NotifiedVersion != _settings.LatestVersion)
+            {
+                Tray?.ShowHint($"MobCam {version} is available", "Open MobCam to download it.");
+                _settings.NotifiedVersion = _settings.LatestVersion;
+                _settings.Save();
+            }
+        }
+        finally
+        {
+            _updateChecking = false;
+        }
+    }
+
+    private void RefreshUpdateCard()
+    {
+        if (_settings.CheckForUpdates is null)
+        {
+            UpdateTitle.Text = "Check for new versions?";
+            UpdateText.Text = "Once a day, MobCam can ask GitHub for the latest version number and tell you when " +
+                              "there's a new one. Nothing else is sent, and nothing is downloaded or installed. " +
+                              "You can change this later under App.";
+            UpdateNoButton.Content = "No thanks";
+            UpdateYesButton.Content = "Yes, check daily";
+            UpdateCard.Visibility = Visibility.Visible;
+        }
+        else if (AvailableUpdate is { } version)
+        {
+            UpdateTitle.Text = $"MobCam {version} is available";
+            UpdateText.Text = $"You have {BuildInfo.Version}. Download the installer and the APK from the release page.";
+            UpdateNoButton.Content = "Later";
+            UpdateYesButton.Content = "Download";
+            UpdateCard.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            UpdateCard.Visibility = Visibility.Collapsed;
+        }
+        UpdateBox.IsChecked = _settings.CheckForUpdates == true;
+    }
+
+    private void OnUpdateYes(object sender, RoutedEventArgs e)
+    {
+        if (_settings.CheckForUpdates is null)
+        {
+            SetCheckForUpdates(true);
+        }
+        else if (AvailableUpdate is not null && _settings.LatestUrl.StartsWith("https://github.com/Ishtiaqasif/mobcam/releases/"))
+        {
+            Process.Start(new ProcessStartInfo(_settings.LatestUrl) { UseShellExecute = true });
+        }
+    }
+
+    private void OnUpdateNo(object sender, RoutedEventArgs e)
+    {
+        if (_settings.CheckForUpdates is null)
+        {
+            SetCheckForUpdates(false);
+            return;
+        }
+        _settings.SkippedVersion = _settings.LatestVersion; // back for the next version
+        _settings.Save();
+        RefreshUpdateCard();
+    }
+
+    private void OnUpdateBoxClick(object sender, RoutedEventArgs e) => SetCheckForUpdates(UpdateBox.IsChecked == true);
+
+    private void SetCheckForUpdates(bool on)
+    {
+        _settings.CheckForUpdates = on;
+        _settings.Save();
+        RefreshUpdateCard();
+        if (on) _ = CheckForUpdatesAsync(now: true);
     }
 
     private void ApplySettingsToUi()
