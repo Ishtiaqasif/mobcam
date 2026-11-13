@@ -192,9 +192,9 @@ int UninstallSource() {
 }
 
 HRESULT VirtualCamera::Start() {
-  HRESULT hr = MFCreateVirtualCamera(MFVirtualCameraType_SoftwareCameraSource, MFVirtualCameraLifetime_Session,
-                                     MFVirtualCameraAccess_CurrentUser, kCameraName, kSourceClsidString, nullptr, 0,
-                                     &camera_);
+  HRESULT hr =
+      MFCreateVirtualCamera(MFVirtualCameraType_SoftwareCameraSource, MFVirtualCameraLifetime_Session,
+                            MFVirtualCameraAccess_CurrentUser, kCameraName, kSourceClsidString, nullptr, 0, &camera_);
   if (FAILED(hr)) return hr;
   hr = camera_->Start(nullptr);
   if (FAILED(hr)) camera_.Reset();

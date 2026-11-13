@@ -31,7 +31,6 @@ private const val TAG = "MobcamEngine"
 private const val MIME = MediaFormat.MIMETYPE_VIDEO_AVC
 private const val FPS = 30
 
-
 enum class Facing(val js: String) { BACK("back"), FRONT("front") }
 
 data class EngineState(
@@ -156,12 +155,14 @@ class StreamEngine(context: Context) {
     tagLensIndex = index
     when {
       !wantRunning -> publish()
+
       // Same camera, different lens: just change the zoom ratio, no restart.
       previous?.cameraId == next.cameraId && session != null && zoomSupported -> {
         frontFacing = next.front
         applyRequest()
         publish()
       }
+
       else -> restart()
     }
   }
@@ -261,23 +262,27 @@ class StreamEngine(context: Context) {
       onPreviewSizeWanted?.invoke(size)
       Log.i(TAG, "Starting ${lens.label} (camera $cameraId, ${formatZoom(lens.zoom)}x) at ${size.width}x${size.height}")
 
-      cameraManager.openCamera(cameraId, object : CameraDevice.StateCallback() {
-        override fun onOpened(camera: CameraDevice) {
-          if (gen != generation) { camera.close(); return }
-          device = camera
-          createSession()
-        }
+      cameraManager.openCamera(
+        cameraId,
+        object : CameraDevice.StateCallback() {
+          override fun onOpened(camera: CameraDevice) {
+            if (gen != generation) { camera.close(); return }
+            device = camera
+            createSession()
+          }
 
-        override fun onDisconnected(camera: CameraDevice) {
-          camera.close()
-          if (gen == generation) { device = null; fail("Camera disconnected (in use by another app?)") }
-        }
+          override fun onDisconnected(camera: CameraDevice) {
+            camera.close()
+            if (gen == generation) { device = null; fail("Camera disconnected (in use by another app?)") }
+          }
 
-        override fun onError(camera: CameraDevice, code: Int) {
-          camera.close()
-          if (gen == generation) { device = null; fail("Camera error $code") }
-        }
-      }, handler)
+          override fun onError(camera: CameraDevice, code: Int) {
+            camera.close()
+            if (gen == generation) { device = null; fail("Camera error $code") }
+          }
+        },
+        handler,
+      )
     } catch (e: Exception) {
       fail(e.message ?: e.toString())
       return
@@ -298,20 +303,24 @@ class StreamEngine(context: Context) {
     sessionTargets = targets
 
     try {
-      camera.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
-        override fun onConfigured(s: CameraCaptureSession) {
-          if (token != sessionToken || device !== camera) { s.close(); return }
-          session = s
-          if (applyRequest()) {
-            error = null
-            publish()
+      camera.createCaptureSession(
+        targets,
+        object : CameraCaptureSession.StateCallback() {
+          override fun onConfigured(s: CameraCaptureSession) {
+            if (token != sessionToken || device !== camera) { s.close(); return }
+            session = s
+            if (applyRequest()) {
+              error = null
+              publish()
+            }
           }
-        }
 
-        override fun onConfigureFailed(s: CameraCaptureSession) {
-          if (token == sessionToken) fail("Camera rejected the stream configuration")
-        }
-      }, handler)
+          override fun onConfigureFailed(s: CameraCaptureSession) {
+            if (token == sessionToken) fail("Camera rejected the stream configuration")
+          }
+        },
+        handler,
+      )
     } catch (e: Exception) {
       fail("Could not create capture session: ${e.message}")
     }
@@ -388,7 +397,7 @@ class StreamEngine(context: Context) {
         width = size?.width ?: 0,
         height = size?.height ?: 0,
         error = error,
-      )
+      ),
     )
   }
 

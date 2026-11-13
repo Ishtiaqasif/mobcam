@@ -4,9 +4,9 @@
 #include "fixtures.h"
 #include "secure.h"
 
-using mobcam::Bytes;
 using fixtures::Get;
 using fixtures::Hex;
+using mobcam::Bytes;
 
 namespace {
 
@@ -34,7 +34,8 @@ Bytes Plain(uint8_t type, const Bytes& payload) {
 TEST_CASE("ECDH matches on both sides and returns the X coordinate big-endian") {
   const Bytes shared = V("shared_secret");
   CHECK(mobcam::v2::Ecdh(V("pc_ephemeral_private"), V("pc_ephemeral_public"), V("phone_ephemeral_public")) == shared);
-  CHECK(mobcam::v2::Ecdh(V("phone_ephemeral_private"), V("phone_ephemeral_public"), V("pc_ephemeral_public")) == shared);
+  CHECK(mobcam::v2::Ecdh(V("phone_ephemeral_private"), V("phone_ephemeral_public"), V("pc_ephemeral_public")) ==
+        shared);
 }
 
 TEST_CASE("ECDH rejects a point that is not on the curve") {

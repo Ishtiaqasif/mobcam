@@ -39,6 +39,7 @@ class StreamServer(
     val queue = LinkedBlockingQueue<ByteArray>(MAX_QUEUED_FRAMES)
     @Volatile var synced = false // touched only by the encoder thread
     @Volatile var open = true
+
     /** Newly allowed PC whose user hasn't confirmed the code yet: no video, no commands. */
     @Volatile var awaitingPc = channel.pendingPairing
   }
@@ -132,7 +133,10 @@ class StreamServer(
       channel.pc?.let { onPairing(it, PairingStage.WAITING_FOR_PC) }
     }
     clients += client
-    Log.i(TAG, "Client connected: ${socket.inetAddress.hostAddress} (usb=$usb, pc=${channel.pc?.name}, awaitingPc=${client.awaitingPc})")
+    Log.i(
+      TAG,
+      "Client connected: ${socket.inetAddress.hostAddress} (usb=$usb, pc=${channel.pc?.name}, awaitingPc=${client.awaitingPc})",
+    )
     thread(name = "MobcamClient", isDaemon = true) { writeLoop(client) }
     thread(name = "MobcamClientIn", isDaemon = true) { readLoop(client) }
     if (!client.awaitingPc) {

@@ -32,7 +32,8 @@ class ProtocolV2Test {
     assertArrayEquals(point, Crypto.encodePoint(Crypto.decodePoint(point)))
   }
 
-  @Test(expected = Exception::class) fun pointOffTheCurveIsRejected() {
+  @Test(expected = Exception::class)
+  fun pointOffTheCurveIsRejected() {
     val bad = v.bytes("phone_ephemeral_public").also { it[40] = (it[40].toInt() xor 1).toByte() }
     Crypto.decodePoint(bad)
   }
@@ -65,12 +66,14 @@ class ProtocolV2Test {
     assertEquals(0, pairedPayload.size)
   }
 
-  @Test(expected = ProtocolException::class) fun tamperedRecordIsRejected() {
+  @Test(expected = ProtocolException::class)
+  fun tamperedRecordIsRejected() {
     val record = v.bytes("command0_record").also { it[6] = (it[6].toInt() xor 1).toByte() }
     open(RecordCipher(v.bytes("key_pc_to_phone")), record)
   }
 
-  @Test(expected = ProtocolException::class) fun recordOutOfOrderIsRejected() {
+  @Test(expected = ProtocolException::class)
+  fun recordOutOfOrderIsRejected() {
     open(RecordCipher(v.bytes("key_pc_to_phone")), v.bytes("paired1_record"))
   }
 

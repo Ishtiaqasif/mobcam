@@ -122,8 +122,13 @@ npm run phone:typecheck
 npm run pc:run          # build the PC side into pc\build\bin and start MobCam.exe
 npm run pc:test         # build and run the PC unit tests (doctest)
 npm run phone:test      # phone unit tests (JVM, no phone needed)
+npm run format          # format all code (C++, C#, Kotlin, TypeScript); `npm run lint` only checks
 npm run icons           # regenerate app icons (scripts/make-icons.ps1)
 ```
+
+**Formatting** uses each language's standard tool: clang-format 19 (`.clang-format`, Google style
+with 120 columns), `dotnet format` and ktlint (both configured in `.editorconfig`), and ESLint
+with Prettier for the phone app's TypeScript. The CI **Lint** job runs `npm run lint`.
 
 **Tests** cover the parts with exact inputs and outputs: splitting the H.264 stream and reading
 MobCam's SEI, rotation and Fit/Fill, lens labelling, and the protocol v2 key schedule and

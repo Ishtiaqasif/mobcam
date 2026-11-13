@@ -54,7 +54,10 @@ class ClassFactory : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IClassFa
     return activator.CopyTo(riid, object);
   }
   STDMETHODIMP LockServer(BOOL lock) override {
-    if (lock) ++g_objectCount; else --g_objectCount;
+    if (lock)
+      ++g_objectCount;
+    else
+      --g_objectCount;
     return S_OK;
   }
 
@@ -90,9 +93,7 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, LPVOID* object) {
   return factory.CopyTo(riid, object);
 }
 
-STDAPI DllCanUnloadNow() {
-  return g_objectCount.load() == 0 ? S_OK : S_FALSE;
-}
+STDAPI DllCanUnloadNow() { return g_objectCount.load() == 0 ? S_OK : S_FALSE; }
 
 // Frame Server only looks in HKLM, so registration requires an elevated process.
 STDAPI DllRegisterServer() {

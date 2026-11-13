@@ -8,11 +8,10 @@ object Fixtures {
     File(requireNotNull(System.getProperty("mobcam.fixtures")) { "mobcam.fixtures not set (see build.gradle)" })
   }
 
-  fun load(name: String): Map<String, String> =
-    File(dir, name).readLines()
-      .map { it.trimEnd('\r') }
-      .filter { it.isNotEmpty() && !it.startsWith("#") && '=' in it }
-      .associate { it.substringBefore('=') to it.substringAfter('=') }
+  fun load(name: String): Map<String, String> = File(dir, name).readLines()
+    .map { it.trimEnd('\r') }
+    .filter { it.isNotEmpty() && !it.startsWith("#") && '=' in it }
+    .associate { it.substringBefore('=') to it.substringAfter('=') }
 
   fun hex(s: String): ByteArray = ByteArray(s.length / 2) { s.substring(2 * it, 2 * it + 2).toInt(16).toByte() }
 

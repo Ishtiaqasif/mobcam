@@ -16,8 +16,12 @@ struct Image {
   int width, height, pitch;
   std::vector<uint8_t> y, uv;
 
-  Image(int w, int h) : width(w), height(h), pitch(w + kPad), y(size_t(pitch) * (h + kPad), kCanary),
-                        uv(size_t(pitch) * (h / 2 + kPad), kCanary) {}
+  Image(int w, int h)
+      : width(w),
+        height(h),
+        pitch(w + kPad),
+        y(size_t(pitch) * (h + kPad), kCanary),
+        uv(size_t(pitch) * (h / 2 + kPad), kCanary) {}
 
   mobcam::Nv12View view() { return {y.data(), pitch, uv.data(), pitch, width, height}; }
   mobcam::Nv12ConstView cview() const { return {y.data(), pitch, uv.data(), pitch, width, height}; }
@@ -54,10 +58,13 @@ Image Quadrants(int w, int h) {
 
 TEST_CASE("rotations put each corner where it belongs") {
   const Image src = Quadrants(32, 16);
-  struct Case { int rotation; uint8_t topLeft, topRight, bottomLeft, bottomRight; };
+  struct Case {
+    int rotation;
+    uint8_t topLeft, topRight, bottomLeft, bottomRight;
+  };
   // Clockwise: at 90° the source's bottom-left (120) ends up top-left.
-  for (const Case& k : {Case{0, 40, 80, 120, 160}, Case{90, 120, 40, 160, 80},
-                        Case{180, 160, 120, 80, 40}, Case{270, 80, 160, 40, 120}}) {
+  for (const Case& k : {Case{0, 40, 80, 120, 160}, Case{90, 120, 40, 160, 80}, Case{180, 160, 120, 80, 40},
+                        Case{270, 80, 160, 40, 120}}) {
     CAPTURE(k.rotation);
     const bool swapped = k.rotation % 180 != 0;
     Image dst(swapped ? 16 : 32, swapped ? 32 : 16);

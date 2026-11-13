@@ -49,6 +49,7 @@ object Proto {
 
   const val REC_VIDEO = 0x10
   const val REC_COMMAND = 0x11
+
   /** PC → phone, empty: the PC's user confirmed the pairing code too (two-sided pairing). */
   const val REC_PAIRED = 0x12
 
@@ -131,8 +132,9 @@ object Crypto {
   fun ecdh(own: PrivateKey, peer: PublicKey): ByteArray =
     KeyAgreement.getInstance("ECDH").run { init(own); doPhase(peer, true); generateSecret() }
 
-  fun hmac(key: ByteArray, vararg parts: ByteArray): ByteArray =
-    Mac.getInstance("HmacSHA256").run { init(SecretKeySpec(key, "HmacSHA256")); parts.forEach { update(it) }; doFinal() }
+  fun hmac(key: ByteArray, vararg parts: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").run {
+    init(SecretKeySpec(key, "HmacSHA256")); parts.forEach { update(it) }; doFinal()
+  }
 
   /** HKDF-Expand (RFC 5869) for up to 32 bytes. */
   fun expand(prk: ByteArray, info: ByteArray, length: Int): ByteArray {
@@ -363,7 +365,15 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
     // HELLO
     val eph = Crypto.ephemeral()
     val nPhone = Crypto.randomBytes(Proto.NONCE_LEN)
-    val name = phoneName.toByteArray(Charsets.UTF_8).let { if (it.size > Proto.MAX_NAME) it.copyOf(Proto.MAX_NAME) else it }
+    val name = phoneName.toByteArray(Charsets.UTF_8).let {
+      if (it.size >
+        Proto.MAX_NAME
+      ) {
+        it.copyOf(Proto.MAX_NAME)
+      } else {
+        it
+      }
+    }
     sendMessage(Proto.MSG_HELLO, Identity.publicKeyBytes + Crypto.encodePoint(eph.public) + nPhone + name)
 
     // REVEAL
@@ -483,8 +493,10 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
     return buf
   }
 
-  private fun intBytes(v: Int) = byteArrayOf((v ushr 24).toByte(), (v ushr 16).toByte(), (v ushr 8).toByte(), v.toByte())
+  private fun intBytes(v: Int) =
+    byteArrayOf((v ushr 24).toByte(), (v ushr 16).toByte(), (v ushr 8).toByte(), v.toByte())
 
   private fun toInt(b: ByteArray) =
-    ((b[0].toInt() and 0xFF) shl 24) or ((b[1].toInt() and 0xFF) shl 16) or ((b[2].toInt() and 0xFF) shl 8) or (b[3].toInt() and 0xFF)
+    ((b[0].toInt() and 0xFF) shl 24) or ((b[1].toInt() and 0xFF) shl 16) or ((b[2].toInt() and 0xFF) shl 8) or
+      (b[3].toInt() and 0xFF)
 }

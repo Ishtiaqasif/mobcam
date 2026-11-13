@@ -6,10 +6,9 @@
 namespace mobcam {
 
 // The single video stream of the virtual camera. Produces NV12 samples on demand.
-class MediaStream
-    : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
-                          ChainInterfaces<IMFMediaStream2, IMFMediaStream, IMFMediaEventGenerator>,
-                          IMFAttributes, IKsControl, FtmBase> {
+class MediaStream : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
+                                        ChainInterfaces<IMFMediaStream2, IMFMediaStream, IMFMediaEventGenerator>,
+                                        IMFAttributes, IKsControl, FtmBase> {
  public:
   HRESULT RuntimeClassInitialize(IMFMediaSource* source, DWORD streamId);
 

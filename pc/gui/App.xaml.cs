@@ -55,7 +55,8 @@ public partial class App : System.Windows.Application
         {
             while (_showSignal.WaitOne())
                 Dispatcher.BeginInvoke(ShowWindow);
-        }) { IsBackground = true, Name = "MobCam.ShowListener" };
+        })
+        { IsBackground = true, Name = "MobCam.ShowListener" };
         listener.Start();
     }
 

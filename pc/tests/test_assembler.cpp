@@ -59,9 +59,8 @@ struct Collector {
 // metadata with each P frame, the last one in two slices.
 Bytes ThreeFrames() {
   const Bytes meta = Hex(Get(Sei(), "metadata0.nal"));
-  return Cat({Nal(7), Nal(8), Hex(Get(Sei(), "lenses.nal")), meta, Nal(5), kAud,
-              meta, Nal(1), kAud,
-              meta, Nal(1, true), Nal(1, false), kAud});
+  return Cat({Nal(7), Nal(8), Hex(Get(Sei(), "lenses.nal")), meta, Nal(5), kAud, meta, Nal(1), kAud, meta, Nal(1, true),
+              Nal(1, false), kAud});
 }
 
 size_t CountNals(const Bytes& au) {
