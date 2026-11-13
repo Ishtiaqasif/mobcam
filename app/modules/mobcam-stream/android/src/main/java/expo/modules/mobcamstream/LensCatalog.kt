@@ -17,7 +17,9 @@ object LensCatalog {
     // Physical members of a listed logical camera are reached through its zoom ratio instead.
     val members = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
       chars.values.flatMap { it.physicalCameraIds }.toSet()
-    } else emptySet()
+    } else {
+      emptySet()
+    }
 
     val found = mutableListOf<Lens>()
     for ((id, c) in chars) {
@@ -28,7 +30,13 @@ object LensCatalog {
       val base = equivalentFocal(c) ?: 26f
 
       val zoomRange: Range<Float>? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) c.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) else null
+        if (Build.VERSION.SDK_INT >=
+          Build.VERSION_CODES.R
+        ) {
+          c.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE)
+        } else {
+          null
+        }
       val physical = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) c.physicalCameraIds else emptySet()
 
       if (physical.size > 1 && zoomRange != null) {
@@ -43,7 +51,13 @@ object LensCatalog {
     }
 
     val labelled = LensRules.label(LensRules.dedupe(found))
-    Log.i(TAG, "Lenses: " + labelled.joinToString { "${it.label} ${formatZoom(it.zoom)}x (id ${it.cameraId}, ${it.equivalentFocal.toInt()}mm)" })
+    Log.i(
+      TAG,
+      "Lenses: " +
+        labelled.joinToString {
+          "${it.label} ${formatZoom(it.zoom)}x (id ${it.cameraId}, ${it.equivalentFocal.toInt()}mm)"
+        },
+    )
     return labelled
   }
 

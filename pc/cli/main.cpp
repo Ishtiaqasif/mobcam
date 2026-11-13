@@ -56,11 +56,16 @@ int ReadAnswerKey() {
 
 const wchar_t* StateName(int s) {
   switch (s) {
-    case MC_STATE_SEARCHING: return L"searching";
-    case MC_STATE_CONNECTING: return L"connecting";
-    case MC_STATE_STREAMING: return L"live";
-    case MC_STATE_PAIRING: return L"pairing";
-    default: return L"idle";
+    case MC_STATE_SEARCHING:
+      return L"searching";
+    case MC_STATE_CONNECTING:
+      return L"connecting";
+    case MC_STATE_STREAMING:
+      return L"live";
+    case MC_STATE_PAIRING:
+      return L"pairing";
+    default:
+      return L"idle";
   }
 }
 
@@ -164,8 +169,9 @@ int wmain(int argc, wchar_t** argv) {
         if (shownStage == MC_PAIRING_WAIT_PHONE) {
           wprintf(L"  Now tap Allow on the phone.\n");
         } else if (!answered) {
-          wprintf(shownStage == MC_PAIRING_WAIT_USER ? L"  The phone allowed it. Does it show the same code? [y/n] "
-                                                     : L"  Does the phone show the same code? [y/n] (and tap Allow there) ");
+          wprintf(shownStage == MC_PAIRING_WAIT_USER
+                      ? L"  The phone allowed it. Does it show the same code? [y/n] "
+                      : L"  Does the phone show the same code? [y/n] (and tap Allow there) ");
         }
       }
       fflush(stdout);

@@ -14,7 +14,9 @@ class LensRulesTest {
   }
 
   @Test fun duplicateLensesAreDroppedAndBackLensesComeFirst() {
-    val result = LensRules.dedupe(listOf(front(24f), back(77f, id = "2"), back(26f, id = "0"), back(27f, id = "3"), back(13f, id = "4")))
+    val result = LensRules.dedupe(
+      listOf(front(24f), back(77f, id = "2"), back(26f, id = "0"), back(27f, id = "3"), back(13f, id = "4")),
+    )
     assertEquals(listOf("4", "0", "2", "1"), result.map { it.cameraId })
   }
 

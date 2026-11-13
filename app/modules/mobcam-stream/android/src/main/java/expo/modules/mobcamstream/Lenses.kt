@@ -34,8 +34,11 @@ object LensRules {
   fun distinctZooms(zooms: List<Float>): List<Float> {
     val out = mutableListOf<Float>()
     for (z in zooms.sorted()) {
-      if (out.isEmpty() || z / out.last() > 1.15f) out += z
-      else if (abs(z - 1f) < 0.05f) out[out.lastIndex] = 1f
+      if (out.isEmpty() || z / out.last() > 1.15f) {
+        out += z
+      } else if (abs(z - 1f) < 0.05f) {
+        out[out.lastIndex] = 1f
+      }
     }
     return out
   }

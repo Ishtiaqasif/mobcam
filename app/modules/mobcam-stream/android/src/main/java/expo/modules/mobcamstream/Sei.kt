@@ -34,7 +34,10 @@ object Sei {
   fun lensList(lenses: List<Lens>): ByteArray {
     val sb = StringBuilder()
     for (lens in lenses) {
-      val entry = "${lens.label.replace(',', ' ').replace(';', ' ')},${formatZoom(lens.zoom)},${if (lens.front) 'f' else 'b'}"
+      val entry = "${lens.label.replace(
+        ',',
+        ' ',
+      ).replace(';', ' ')},${formatZoom(lens.zoom)},${if (lens.front) 'f' else 'b'}"
       if (sb.length + entry.length + 1 > 220) break
       if (sb.isNotEmpty()) sb.append(';')
       sb.append(entry)

@@ -15,10 +15,9 @@ object Mobcam {
 
   @Volatile private var engine: StreamEngine? = null
 
-  fun engine(context: Context): StreamEngine =
-    engine ?: synchronized(this) {
-      engine ?: StreamEngine(context.applicationContext).also { engine = it }
-    }
+  fun engine(context: Context): StreamEngine = engine ?: synchronized(this) {
+    engine ?: StreamEngine(context.applicationContext).also { engine = it }
+  }
 
   private val ignoredInterfaces = listOf("rmnet", "ccmni", "dummy", "tun", "v4-", "ip6tnl", "p2p", "lo")
 

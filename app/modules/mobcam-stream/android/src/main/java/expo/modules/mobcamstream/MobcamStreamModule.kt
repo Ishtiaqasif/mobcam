@@ -20,6 +20,7 @@ private const val NOTICES_ASSET = "THIRD-PARTY-NOTICES.txt"
 
 private const val SETTINGS = "mobcam-settings"
 private const val KEY_BACKGROUND = "backgroundStreaming"
+
 /** A PC that drops off may reconnect; keep the background service this long without one. */
 private const val IDLE_STOP_MS = 60_000L
 
@@ -30,6 +31,7 @@ class MobcamStreamModule : Module() {
   private var broker: PairingBroker? = null
   private var orientation: OrientationEventListener? = null
   @Volatile private var engineState: EngineState? = null
+
   /** Shown under the connection line, e.g. "A PC with an old MobCam version tried to connect". */
   @Volatile private var notice: String? = null
   private var started = false
@@ -41,9 +43,11 @@ class MobcamStreamModule : Module() {
 
   // ---- "Keep streaming in background" (StreamService). All of this runs on the main thread.
   private val main = Handler(Looper.getMainLooper())
+
   /** Application context captured by start(), still usable in OnDestroy. */
   private var appCtx: Context? = null
   @Volatile private var inForeground = true
+
   /** The foreground service was started and not stopped since. */
   @Volatile private var serviceOn = false
   private var backgroundSetting: Boolean? = null
@@ -97,11 +101,15 @@ class MobcamStreamModule : Module() {
           onPairing = { pc, stage ->
             when (stage) {
               PairingStage.WAITING_FOR_PC -> notice = "Now confirm the code on ${pc.name} to finish pairing."
+
               PairingStage.PAIRED -> {
                 gate.confirm(pc)
                 notice = null
               }
-              PairingStage.CANCELLED -> notice = "Pairing with ${pc.name} was not confirmed on the PC. Nothing was saved."
+
+              PairingStage.CANCELLED ->
+                notice =
+                  "Pairing with ${pc.name} was not confirmed on the PC. Nothing was saved."
             }
             emitStatus()
           },

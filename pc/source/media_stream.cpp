@@ -9,7 +9,9 @@ namespace {
 constexpr UINT32 kFps = 30;
 constexpr LONGLONG kFrameDuration = 10'000'000 / kFps;  // 100 ns units
 
-struct Size { UINT32 w, h; };
+struct Size {
+  UINT32 w, h;
+};
 // All 16:9 so scaling from the 1920x1080 canvas never distorts.
 constexpr Size kSizes[] = {{1920, 1080}, {1280, 720}, {640, 360}};
 
@@ -48,7 +50,8 @@ HRESULT MediaStream::RuntimeClassInitialize(IMFMediaSource* source, DWORD stream
   for (size_t i = 0; i < _countof(kSizes); ++i) {
     HRESULT hr = MakeNv12Type(kSizes[i].w, kSizes[i].h, &types[i]);
     if (FAILED(hr)) {
-      for (auto* t : types) if (t) t->Release();
+      for (auto* t : types)
+        if (t) t->Release();
       return hr;
     }
   }

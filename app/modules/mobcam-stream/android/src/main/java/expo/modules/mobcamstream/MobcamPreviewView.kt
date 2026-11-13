@@ -13,7 +13,8 @@ import expo.modules.kotlin.views.ExpoView
  * front-camera mirroring; the streamed video itself is never mirrored.
  */
 class MobcamPreviewView(context: Context, appContext: AppContext) :
-  ExpoView(context, appContext), SurfaceHolder.Callback {
+  ExpoView(context, appContext),
+  SurfaceHolder.Callback {
 
   override val shouldUseAndroidLayout = true
 
@@ -26,7 +27,7 @@ class MobcamPreviewView(context: Context, appContext: AppContext) :
   init {
     addView(
       surfaceView,
-      ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+      ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
     )
     surfaceView.holder.addCallback(this)
   }

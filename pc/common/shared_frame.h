@@ -28,8 +28,7 @@ constexpr uint64_t kMappingBytes = kHeaderBytes + uint64_t(kSlotCount) * kCanvas
 constexpr uint64_t kStaleMs = 1500;
 
 // Everyone in the interactive session (and services) may read/write; low-IL allowed too.
-constexpr wchar_t kMappingSddl[] =
-    L"D:P(A;;GA;;;SY)(A;;GA;;;LS)(A;;GA;;;BA)(A;;GA;;;IU)(A;;GA;;;AU)S:(ML;;NW;;;LW)";
+constexpr wchar_t kMappingSddl[] = L"D:P(A;;GA;;;SY)(A;;GA;;;LS)(A;;GA;;;BA)(A;;GA;;;IU)(A;;GA;;;AU)S:(ML;;NW;;;LW)";
 
 struct SharedHeader {
   uint32_t magic;
@@ -38,7 +37,7 @@ struct SharedHeader {
   uint32_t height;
   uint32_t slotCount;
   uint32_t frameBytes;
-  volatile LONG latestSlot;       // index of the newest complete frame, -1 if none yet
+  volatile LONG latestSlot;  // index of the newest complete frame, -1 if none yet
   volatile LONG reserved0;
   volatile LONG64 sequence;       // increments once per published frame
   volatile LONG64 lastWriteTick;  // GetTickCount64() of the last publish (system-wide clock)
@@ -64,8 +63,8 @@ inline void InitHeader(SharedHeader* h) {
 }
 
 inline bool HeaderValid(const SharedHeader* h) {
-  return h->magic == kMagic && h->version == kVersion && h->width == kCanvasWidth &&
-         h->height == kCanvasHeight && h->slotCount == kSlotCount;
+  return h->magic == kMagic && h->version == kVersion && h->width == kCanvasWidth && h->height == kCanvasHeight &&
+         h->slotCount == kSlotCount;
 }
 
 }  // namespace mobcam

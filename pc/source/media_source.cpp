@@ -121,7 +121,8 @@ STDMETHODIMP MediaSource::Start(IMFPresentationDescriptor* pd, const GUID* timeF
 
     ComPtr<IUnknown> unk;
     MC_RETURN_IF_FAILED(stream_.As(&unk));
-    MC_RETURN_IF_FAILED(queue_->QueueEventParamUnk(running ? MEUpdatedStream : MENewStream, GUID_NULL, S_OK, unk.Get()));
+    MC_RETURN_IF_FAILED(
+        queue_->QueueEventParamUnk(running ? MEUpdatedStream : MENewStream, GUID_NULL, S_OK, unk.Get()));
     MC_RETURN_IF_FAILED(stream_->Start(type.Get()));
   } else if (running) {
     MC_RETURN_IF_FAILED(descriptor_->DeselectStream(0));

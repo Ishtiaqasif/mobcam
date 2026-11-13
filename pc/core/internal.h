@@ -48,10 +48,10 @@ struct PhoneLens {
 
 // Phone metadata carried in MobCam's SEI.
 struct PhoneInfo {
-  int rotation = -1;      // clockwise degrees to make the picture upright
-  int facing = -1;        // 0 back, 1 front
-  int targetHeight = 0;   // 480 / 720 / 1080
-  int lensIndex = -1;     // index into lenses
+  int rotation = -1;     // clockwise degrees to make the picture upright
+  int facing = -1;       // 0 back, 1 front
+  int targetHeight = 0;  // 480 / 720 / 1080
+  int lensIndex = -1;    // index into lenses
   std::vector<PhoneLens> lenses;
 };
 
@@ -123,7 +123,7 @@ bool IsSourceOutdated();  // installed DLL differs from the one next to this mod
 int InstallSource();      // needs admin
 int UninstallSource();    // needs admin
 int RunElevated(const std::wstring& exe, const std::wstring& args);  // UAC, waits, returns exit code
-std::wstring ModuleDir();  // folder of the binary containing the MobCam core
+std::wstring ModuleDir();                                            // folder of the binary containing the MobCam core
 
 class VirtualCamera {
  public:

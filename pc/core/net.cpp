@@ -78,7 +78,10 @@ std::vector<PhoneAddress> DiscoverPhones(int timeoutMs, bool stopAtFirst) {
   for (;;) {
     const ULONGLONG now = GetTickCount64();
     if (now >= deadline) break;
-    if (now >= nextProbe) { sendProbes(); nextProbe = now + 400; }
+    if (now >= nextProbe) {
+      sendProbes();
+      nextProbe = now + 400;
+    }
 
     fd_set rd;
     FD_ZERO(&rd);
