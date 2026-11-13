@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- **New version notice** in both apps, only if you allow it: the first time each app starts, it
+  asks whether to check GitHub for new versions. If you say yes, it checks once a day and shows a
+  notice with a link to the release page when there's a newer version (*Later* hides it until the
+  next one). Nothing is downloaded or installed. Change it any time: *Check GitHub for new
+  versions* in the Windows app's App section, or in *About* on the phone. The privacy statement
+  describes exactly what is sent.
 
 ## [1.2.0] - 2026-11-13
 ### Added

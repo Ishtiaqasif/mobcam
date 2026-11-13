@@ -13,8 +13,9 @@ public partial class AboutWindow : Window
     /// <summary>Same promise as README → Privacy and PRIVACY.md.</summary>
     private const string PrivacySummary =
         "No accounts, no analytics, no ads, no servers. The video goes from your phone to this PC, over " +
-        "the USB cable or your local network, and is never recorded or sent anywhere else. MobCam " +
-        "doesn't connect to the internet. Pairings and settings stay on your devices.";
+        "the USB cable or your local network, and is never recorded or sent anywhere else. The only time " +
+        "MobCam goes online is to ask GitHub for the latest version number, and only if you allow it. " +
+        "Pairings and settings stay on your devices.";
 
     /// <summary>Written next to MobCam.exe by scripts/notices.ps1 for release builds.</summary>
     private const string NoticesFile = "THIRD-PARTY-NOTICES.txt";
