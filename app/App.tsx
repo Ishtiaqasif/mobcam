@@ -46,6 +46,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // setPermission runs after the permission dialog (await), not synchronously in the effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     requestPermission();
   }, [requestPermission]);
 

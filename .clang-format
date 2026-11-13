@@ -1,0 +1,10 @@
+# C++ style (issue #13): Google style as the code was written, with 120 columns.
+# Check: npm run lint   Fix: npm run format   (scripts/format.ps1, clang-format 19)
+BasedOnStyle: Google
+ColumnLimit: 120
+DerivePointerAlignment: false
+PointerAlignment: Left
+# Never reorder includes: Windows headers depend on their order (winsock2.h before windows.h,
+# ks.h before ksmedia.h), so sorting them breaks the build.
+SortIncludes: Never
+IncludeBlocks: Preserve

@@ -1,0 +1,51 @@
+# Formatting rules for every editor and formatter (issue #13). Check everything with
+# `npm run lint`, fix with `npm run format` (scripts/format.ps1).
+# Line endings are set by .gitattributes (LF in the repository, CRLF for PowerShell), so they are
+# deliberately not set here.
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 120
+
+[*.md]
+# Two trailing spaces are a line break in Markdown
+trim_trailing_whitespace = false
+max_line_length = off
+
+[*.{xaml,csproj,props,targets,xml}]
+indent_size = 4
+
+[pc/third_party/**]
+# Vendored as is
+charset = unset
+indent_size = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+max_line_length = unset
+
+# ---- Kotlin (ktlint reads these)
+[*.{kt,kts}]
+ktlint_code_style = intellij_idea
+# Keep the compact style the code is written in: one-line try/catch and if bodies, @Volatile
+# fields without blank lines between them, KDoc on the Expo module's Function { } blocks.
+ktlint_standard_statement-wrapping = disabled
+ktlint_standard_spacing-between-declarations-with-annotations = disabled
+ktlint_standard_kdoc = disabled
+
+# ---- C# (dotnet format reads these)
+[*.cs]
+indent_size = 4
+csharp_new_line_before_open_brace = all
+csharp_prefer_braces = when_multiline:warning
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning

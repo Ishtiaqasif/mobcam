@@ -16,6 +16,8 @@
     "release:pc": "pwsh -NoProfile -File scripts/release-pc.ps1",
     "release": "npm run release:pc && npm run release:phone",
     "icons": "pwsh -NoProfile -File scripts/make-icons.ps1",
+    "format": "pwsh -NoProfile -File scripts/format.ps1",
+    "lint": "pwsh -NoProfile -File scripts/format.ps1 -Check",
     "bump": "pwsh -NoProfile -File scripts/bump-version.ps1",
     "check-versions": "pwsh -NoProfile -File scripts/check-versions.ps1"
   }
