@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git status *)",
+      "PowerShell(git log *)",
+      "PowerShell(git show *)",
+      "PowerShell(git diff *)",
+      "PowerShell(git grep *)",
+      "PowerShell(git ls-files *)",
+      "PowerShell(gh issue view *)",
+      "PowerShell(gh issue list *)",
+      "PowerShell(gh pr view *)",
+      "PowerShell(gh pr checks *)",
+      "PowerShell(gh pr list *)",
+      "PowerShell(gh run list *)",
+      "PowerShell(gh run view *)",
+      "PowerShell(gh project item-list *)",
+      "PowerShell(gh project field-list *)",
+      "PowerShell(gh release view *)",
+      "PowerShell(gh release list *)",
+      "PowerShell(gh auth status)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Select-String *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(Measure-Object *)"
+    ]
+  }
+}
