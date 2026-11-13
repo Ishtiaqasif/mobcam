@@ -41,12 +41,16 @@ std::vector<PhoneLens> ParseLensList(const char* text, size_t length) {
 // Index of the next 00 00 01 at or after `from`, or npos.
 size_t FindStartCode(const std::vector<uint8_t>& b, size_t from) {
   const size_t n = b.size();
-  for (size_t i = from; i + 2 < n; ++i) {
+  size_t i = from;
+  while (i + 2 < n) {
+    // Fast skip: if b[i + 2] > 1, no start code can begin at i, i + 1 or i + 2.
     if (b[i + 2] > 1) {
-      i += 2;
-      continue;
-    }  // fast skip
-    if (b[i] == 0 && b[i + 1] == 0 && b[i + 2] == 1) return i;
+      i += 3;
+    } else if (b[i] == 0 && b[i + 1] == 0 && b[i + 2] == 1) {
+      return i;
+    } else {
+      ++i;
+    }
   }
   return std::string::npos;
 }
