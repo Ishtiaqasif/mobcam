@@ -80,6 +80,8 @@ typedef struct mc_status {
   int32_t pairing_code;        /* 0..999999 while state == MC_STATE_PAIRING, else -1 */
   int32_t problem;             /* mc_problem */
   int32_t pairing_stage;       /* mc_pairing_stage */
+  int32_t phone_fps;           /* frame rate setting 30/60, 0 = phone app without it (send no FPS) */
+  int32_t phone_max_fps;       /* highest frame rate of the phone's lens at this size, 0 unknown */
 } mc_status;
 
 typedef struct mc_paired_phone {
@@ -127,8 +129,8 @@ MC_API int32_t mc_get_preview(uint8_t* bgra, int32_t width, int32_t height, int3
 /* Lenses of the connected phone (ultra-wide, wide, telephoto, front...). Returns the count. */
 MC_API int32_t mc_get_lenses(mc_lens* lenses, int32_t max_lenses);
 
-/* Phone remote control: "SWITCH", "FACING front|back", "LENS <index>", "RES 480|720|1080".
- * Returns 1 if sent. */
+/* Phone remote control: "SWITCH", "FACING front|back", "LENS <index>", "RES 480|720|1080",
+ * "FPS 30|60" (only if status.phone_fps > 0). Returns 1 if sent. */
 MC_API int32_t mc_phone_command(const char* command);
 
 /* Answers the pairing question while state == MC_STATE_PAIRING: 1 = the phone shows the same

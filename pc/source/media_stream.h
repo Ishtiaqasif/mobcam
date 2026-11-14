@@ -55,6 +55,7 @@ class MediaStream : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
   MF_STREAM_STATE state_ = MF_STREAM_STATE_STOPPED;
   UINT32 width_ = 1920;
   UINT32 height_ = 1080;
+  LONGLONG frameDuration_ = 10'000'000 / 30;  // 100 ns units, from the chosen format's frame rate
   LONGLONG nextDue_ = 0;
   FrameSource frames_;
 };

@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 
 import {
+  FRAME_RATES,
   MobcamPreview,
   MobcamStream,
   RESOLUTIONS,
@@ -127,6 +128,8 @@ function Streaming() {
             })}
           </View>
         </View>
+
+        <FrameRate status={status} />
 
         <View style={styles.block}>
           <Text style={styles.label}>
@@ -430,6 +433,39 @@ function versionLabel(): string {
   return parts.join(' · ');
 }
 
+/** 30 / 60 fps next to the resolution (#47). The PC app can change it too. */
+function FrameRate({ status }: { status: MobcamStatus }) {
+  // maxFps is known once the camera ran with the current lens and size.
+  const noSixty = status.maxFps > 0 && status.maxFps < 60;
+  return (
+    <View style={styles.block}>
+      <Text style={styles.label}>Frame rate{status.fps > 0 ? `  ·  ${status.fps} fps` : ''}</Text>
+      <View style={styles.segment}>
+        {FRAME_RATES.map((f) => {
+          const selected = status.targetFps === f;
+          const dim = f === 60 && noSixty && !selected;
+          return (
+            <Pressable
+              key={f}
+              onPress={() => MobcamStream.setFrameRate(f)}
+              style={[styles.segmentItem, selected && styles.segmentItemOn]}
+            >
+              <Text style={[styles.segmentText, selected && styles.segmentTextOn, dim && styles.segmentTextDim]}>
+                {f} fps
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.hint}>
+        {status.targetFps === 60 && noSixty
+          ? `This camera can’t do 60 fps at ${status.height}p, so it streams at 30. Try a lower resolution or another lens.`
+          : 'Smoother in OBS, Discord and browsers. Zoom, Teams and Meet use at most 30.'}
+      </Text>
+    </View>
+  );
+}
+
 /** "Keep streaming in background" (opt-in, decision in #15). */
 function BackgroundSwitch({ status }: { status: MobcamStatus }) {
   const toggle = async (on: boolean) => {
@@ -546,6 +582,7 @@ const styles = StyleSheet.create({
   segmentItemOn: { backgroundColor: '#2b6fff' },
   segmentText: { color: '#8a8f98', fontWeight: '600' },
   segmentTextOn: { color: '#fff' },
+  segmentTextDim: { color: '#4a4f57' },
   switchButton: {
     backgroundColor: '#2b6fff',
     borderRadius: 12,

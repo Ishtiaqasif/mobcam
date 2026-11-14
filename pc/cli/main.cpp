@@ -35,6 +35,7 @@ void PrintUsage() {
       L"Options:\n"
       L"  --rotate auto|0|90|180|270  override the picture rotation (default: auto)\n"
       L"  --fill                      crop to fill the frame instead of showing black bars\n"
+      L"  --fps 30|60                 ask the phone for this frame rate (60 where the lens allows it)\n"
       L"  --no-camera                 decode only, don't register the virtual camera\n");
 }
 
@@ -80,6 +81,7 @@ int wmain(int argc, wchar_t** argv) {
   int rotation = -1;
   bool fill = false;
   bool useCamera = true;
+  int wantFps = 0;  // 0 = leave the phone's setting alone
 
   for (int i = 1; i < argc; ++i) {
     std::wstring a = argv[i];
@@ -104,6 +106,13 @@ int wmain(int argc, wchar_t** argv) {
     } else if (a == L"--rotate" && i + 1 < argc) {
       std::wstring v = argv[++i];
       rotation = v == L"auto" ? -1 : _wtoi(v.c_str());
+    } else if (a == L"--fps" && i + 1 < argc) {
+      const int v = _wtoi(argv[++i]);
+      if (v != 30 && v != 60) {
+        PrintUsage();
+        return 2;
+      }
+      wantFps = v;
     } else if (!a.empty() && a[0] != L'-') {
       const size_t colon = a.find(L':');
       if (colon != std::wstring::npos) {
@@ -152,6 +161,7 @@ int wmain(int argc, wchar_t** argv) {
   int shownCode = -1;
   int shownStage = MC_PAIRING_NONE;
   bool answered = false;
+  bool fpsSent = false;
   ULONGLONG lastStatus = 0;
   while (!g_quit) {
     Sleep(100);
@@ -196,6 +206,16 @@ int wmain(int argc, wchar_t** argv) {
       wprintf(L"\n  %s\n", s.message);
       fflush(stdout);
       break;  // the engine stopped; the user has to act on the phone first
+    }
+    // --fps: once per connection, as soon as the phone reports its setting (the phone may change it later).
+    if (s.state != MC_STATE_STREAMING) fpsSent = false;
+    if (wantFps && !fpsSent && s.state == MC_STATE_STREAMING && s.phone_fps > 0) {
+      fpsSent = true;
+      if (s.phone_fps != wantFps) {
+        char command[16];
+        sprintf_s(command, "FPS %d", wantFps);
+        mc_phone_command(command);
+      }
     }
     if (s.state == MC_STATE_STREAMING && s.width) {
       wprintf(L"\r  %-4s | %s | %dx%d | %2d fps | %5d kbps | rot %3d | camera %-6s     ",

@@ -10,6 +10,8 @@ import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.params.OutputConfiguration
+import android.hardware.camera2.params.SessionConfiguration
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -24,12 +26,19 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 private const val TAG = "MobcamEngine"
 private const val MIME = MediaFormat.MIMETYPE_VIDEO_AVC
-private const val FPS = 30
+
+/** Frame rates the user can pick; 30 is the default (Zoom, Teams and Meet send at most 30). */
+const val FPS_DEFAULT = 30
+const val FPS_HIGH = 60
+
+/** Longest frame duration (ns) that still allows 60 fps, with a little slack for rounding. */
+private const val FRAME_NS_60 = 16_700_000L
 
 enum class Facing(val js: String) { BACK("back"), FRONT("front") }
 
@@ -42,6 +51,12 @@ data class EngineState(
   val width: Int,
   val height: Int,
   val error: String?,
+  /** Frame rate setting (30 or 60). */
+  val targetFps: Int,
+  /** Highest frame rate the current lens offers at the current size; 0 until the camera started once. */
+  val maxFps: Int,
+  /** Frame rate being streamed right now: the setting, or 30 where 60 isn't available. */
+  val fps: Int,
 )
 
 /** Receives encoded H.264 access units (Annex-B). Keyframes carry SPS/PPS in front. */
@@ -65,6 +80,9 @@ class StreamEngine(context: Context) {
 
   private var wantRunning = false
   private var targetHeight = 720
+  private var targetFps = FPS_DEFAULT
+  private var maxFps = 0
+  private var streamFps = FPS_DEFAULT
 
   /** Every selectable lens (ultra-wide, wide, telephoto, front...). */
   val lenses: List<Lens> by lazy { LensCatalog.enumerate(cameraManager) }
@@ -93,6 +111,8 @@ class StreamEngine(context: Context) {
   @Volatile private var frontFacing = false
   @Volatile private var tagTargetHeight = 720
   @Volatile private var tagLensIndex = 0
+  @Volatile private var tagTargetFps = FPS_DEFAULT
+  @Volatile private var tagMaxFps = FPS_DEFAULT
   @Volatile private var lensListSei = ByteArray(0)
 
   /** Physical device orientation in degrees (0/90/180/270), fed by an OrientationEventListener. */
@@ -188,6 +208,24 @@ class StreamEngine(context: Context) {
     }
   }
 
+  /** 30 or 60 fps. Where the lens can't do 60 at the current size, the stream stays at 30. */
+  fun setFrameRate(fps: Int) {
+    handler.post {
+      val value = if (fps >= FPS_HIGH) FPS_HIGH else FPS_DEFAULT
+      if (value == targetFps) return@post
+      targetFps = value
+      tagTargetFps = value
+      // Restart only if the streamed rate changes (encoder rate, bitrate and AE range depend on it).
+      when {
+        !wantRunning -> publish()
+        session != null && effectiveFps(maxFps) == streamFps -> publish()
+        else -> restart()
+      }
+    }
+  }
+
+  private fun effectiveFps(max: Int): Int = if (targetFps >= FPS_HIGH && max >= FPS_HIGH) FPS_HIGH else FPS_DEFAULT
+
   fun requestKeyFrame() {
     handler.post {
       try {
@@ -250,17 +288,25 @@ class StreamEngine(context: Context) {
       val codec = MediaCodec.createEncoderByType(MIME)
       encoder = codec
       val size = chooseSize(chars, codec)
-      codec.configure(encoderFormat(size), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+      maxFps = maxFpsFor(chars, codec, size)
+      streamFps = effectiveFps(maxFps)
+      tagTargetFps = targetFps
+      tagMaxFps = maxFps
+      codec.configure(encoderFormat(size, streamFps), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
       encoderSurface = codec.createInputSurface()
       codec.start()
       startDrain(codec)
 
-      fpsRange = chooseFpsRange(chars)
+      fpsRange = chooseFpsRange(chars, streamFps)
       continuousAf = chars.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
         ?.contains(CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_VIDEO) == true
       currentSize = size
       onPreviewSizeWanted?.invoke(size)
-      Log.i(TAG, "Starting ${lens.label} (camera $cameraId, ${formatZoom(lens.zoom)}x) at ${size.width}x${size.height}")
+      Log.i(
+        TAG,
+        "Starting ${lens.label} (camera $cameraId, ${formatZoom(lens.zoom)}x) at ${size.width}x${size.height} " +
+          "$streamFps fps (up to $maxFps, range $fpsRange)",
+      )
 
       cameraManager.openCamera(
         cameraId,
@@ -290,7 +336,6 @@ class StreamEngine(context: Context) {
     publish()
   }
 
-  @Suppress("DEPRECATION")
   private fun createSession() {
     val camera = device ?: return
     val encSurface = encoderSurface ?: return
@@ -302,44 +347,59 @@ class StreamEngine(context: Context) {
     sessionHasPreview = withPreview
     sessionTargets = targets
 
-    try {
-      camera.createCaptureSession(
-        targets,
-        object : CameraCaptureSession.StateCallback() {
-          override fun onConfigured(s: CameraCaptureSession) {
-            if (token != sessionToken || device !== camera) { s.close(); return }
-            session = s
-            if (applyRequest()) {
-              error = null
-              publish()
-            }
-          }
+    val callback = object : CameraCaptureSession.StateCallback() {
+      override fun onConfigured(s: CameraCaptureSession) {
+        if (token != sessionToken || device !== camera) { s.close(); return }
+        session = s
+        if (applyRequest()) {
+          error = null
+          publish()
+        }
+      }
 
-          override fun onConfigureFailed(s: CameraCaptureSession) {
-            if (token == sessionToken) fail("Camera rejected the stream configuration")
-          }
-        },
-        handler,
-      )
+      override fun onConfigureFailed(s: CameraCaptureSession) {
+        if (token == sessionToken) fail("Camera rejected the stream configuration")
+      }
+    }
+
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val config = SessionConfiguration(
+          SessionConfiguration.SESSION_REGULAR,
+          targets.map { OutputConfiguration(it) },
+          Executor { handler.post(it) },
+          callback,
+        )
+        // Tells the camera the frame rate up front, so it can configure for 60 fps without a
+        // reconfiguration when the first request arrives.
+        config.sessionParameters = buildRequest(camera).build()
+        camera.createCaptureSession(config)
+      } else {
+        @Suppress("DEPRECATION")
+        camera.createCaptureSession(targets, callback, handler)
+      }
     } catch (e: Exception) {
       fail("Could not create capture session: ${e.message}")
     }
   }
 
-  /** (Re)issues the repeating capture request, including the current lens' zoom ratio. */
+  /** The repeating request: targets, frame rate, autofocus and the current lens' zoom ratio. */
+  private fun buildRequest(camera: CameraDevice): CaptureRequest.Builder =
+    camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+      sessionTargets.forEach { addTarget(it) }
+      fpsRange?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+      if (continuousAf) set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+      if (zoomSupported && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        set(CaptureRequest.CONTROL_ZOOM_RATIO, lenses.getOrNull(lensIndex)?.zoom ?: 1f)
+      }
+    }
+
+  /** (Re)issues the repeating capture request, e.g. with a new lens' zoom ratio. */
   private fun applyRequest(): Boolean {
     val camera = device ?: return false
     val s = session ?: return false
     return try {
-      val request = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
-        sessionTargets.forEach { addTarget(it) }
-        fpsRange?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
-        if (continuousAf) set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
-        if (zoomSupported && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-          set(CaptureRequest.CONTROL_ZOOM_RATIO, lenses.getOrNull(lensIndex)?.zoom ?: 1f)
-        }
-      }
-      s.setRepeatingRequest(request.build(), null, handler)
+      s.setRepeatingRequest(buildRequest(camera).build(), null, handler)
       true
     } catch (e: Exception) {
       fail("Could not start capture: ${e.message}")
@@ -397,6 +457,9 @@ class StreamEngine(context: Context) {
         width = size?.width ?: 0,
         height = size?.height ?: 0,
         error = error,
+        targetFps = targetFps,
+        maxFps = maxFps,
+        fps = if (size != null) streamFps else 0,
       ),
     )
   }
@@ -420,22 +483,47 @@ class StreamEngine(context: Context) {
     return previewable.maxBy { it.width * it.height }
   }
 
-  private fun chooseFpsRange(chars: CameraCharacteristics): Range<Int>? {
+  /** A fixed range ([60, 60]) if there is one, so the rate doesn't drop in dim light; else the closest. */
+  private fun chooseFpsRange(chars: CameraCharacteristics, fps: Int): Range<Int>? {
     val ranges = chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES) ?: return null
-    return ranges.filter { it.upper == FPS }.maxByOrNull { it.lower }
-      ?: ranges.filter { it.upper <= FPS }.maxByOrNull { it.upper }
+    return ranges.filter { it.upper == fps }.maxByOrNull { it.lower }
+      ?: ranges.filter { it.upper <= fps }.maxByOrNull { it.upper }
   }
 
-  private fun encoderFormat(size: Size): MediaFormat {
-    val bitrate = when {
+  /**
+   * 60 if the camera offers a 60 fps AE range, can deliver [size] that fast to the encoder (and to
+   * the preview, which shares the session) and the encoder accepts 60 fps at that size; else 30.
+   */
+  private fun maxFpsFor(chars: CameraCharacteristics, codec: MediaCodec, size: Size): Int {
+    val ranges = chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES) ?: return FPS_DEFAULT
+    if (ranges.none { it.upper == FPS_HIGH }) return FPS_DEFAULT
+    val map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return FPS_DEFAULT
+    val fast = try {
+      val encoderOk = map.getOutputMinFrameDuration(MediaCodec::class.java, size) <= FRAME_NS_60
+      val previewSizes = map.getOutputSizes(SurfaceHolder::class.java)?.toSet() ?: emptySet()
+      val previewOk = size !in previewSizes ||
+        map.getOutputMinFrameDuration(SurfaceHolder::class.java, size) <= FRAME_NS_60
+      encoderOk && previewOk
+    } catch (e: IllegalArgumentException) {
+      false
+    }
+    val caps = codec.codecInfo.getCapabilitiesForType(MIME).videoCapabilities
+    val encoderFast = caps?.areSizeAndRateSupported(size.width, size.height, FPS_HIGH.toDouble()) != false
+    return if (fast && encoderFast) FPS_HIGH else FPS_DEFAULT
+  }
+
+  private fun encoderFormat(size: Size, fps: Int): MediaFormat {
+    val base = when {
       size.height >= 1080 -> 8_000_000
       size.height >= 720 -> 4_000_000
       else -> 2_000_000
     }
+    // Twice the frames don't need twice the bits: consecutive frames differ less (1080p60: 14 Mbps).
+    val bitrate = if (fps >= FPS_HIGH) base * 7 / 4 else base
     return MediaFormat.createVideoFormat(MIME, size.width, size.height).apply {
       setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
       setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-      setInteger(MediaFormat.KEY_FRAME_RATE, FPS)
+      setInteger(MediaFormat.KEY_FRAME_RATE, fps)
       setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
       setInteger(MediaFormat.KEY_PRIORITY, 0) // realtime
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -503,7 +591,7 @@ class StreamEngine(context: Context) {
 
   /** Metadata SEI for this frame (see [Sei.metadata]); rebuilt only when something changed. */
   private fun rotationSei(rotation: Int): ByteArray {
-    val info = Sei.metadataText(rotation, frontFacing, tagTargetHeight, tagLensIndex)
+    val info = Sei.metadataText(rotation, frontFacing, tagTargetHeight, tagLensIndex, tagTargetFps, tagMaxFps)
     if (info == seiKey) return seiBytes
     seiBytes = Sei.userData(Sei.METADATA_UUID, info)
     seiKey = info
