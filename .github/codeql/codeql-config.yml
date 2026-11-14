@@ -1,0 +1,11 @@
+# CodeQL settings shared by the analysis jobs in .github/workflows/codeql.yml, which choose the
+# query suite (security-and-quality). Only queries that restate the design are turned off here.
+name: MobCam CodeQL config
+
+query-filters:
+  - exclude:
+      id:
+        # The Windows app drives the native engine (mobcam-core.dll) through P/Invoke by design:
+        # every DllImport and every call to one would be reported (#54).
+        - cs/unmanaged-code
+        - cs/call-to-unmanaged-code

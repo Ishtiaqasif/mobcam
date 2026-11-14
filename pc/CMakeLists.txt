@@ -25,7 +25,7 @@ add_library(mobcam-source SHARED
   source/mobcam-source.def
 )
 target_link_libraries(mobcam-source PRIVATE
-  mfplat mfuuid mf mfsensorgroup propsys ole32 oleaut32 advapi32 gdi32 user32)
+  mfplat mfuuid mf mfsensorgroup propsys ole32 oleaut32 advapi32 gdi32 user32 shell32)
 
 # ---- Engine sources shared by the DLL (for the app) and the CLI
 set(CORE_SOURCES

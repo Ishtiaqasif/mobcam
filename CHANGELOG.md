@@ -21,6 +21,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - The phone uses the newer Android camera session API on Android 9 and later.
+- The phone app is left out of Android backups and phone-to-phone transfers, so its paired PCs
+  and settings stay on that phone. On a new phone, pair your PCs again.
+- The Windows app and the virtual camera find Program Files and ProgramData through Windows
+  itself instead of environment variables.
 
 ## [1.2.0] - 2026-11-13
 ### Added

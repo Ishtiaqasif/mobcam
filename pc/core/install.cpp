@@ -5,6 +5,7 @@
 
 #include <cstdio>
 
+#include "../common/known_folder.h"
 #include "../common/mobcam_ids.h"
 
 namespace mobcam {
@@ -26,17 +27,9 @@ std::wstring ExeDir() { return ModuleDir(); }
 
 // The DLL is loaded by Frame Server (LOCAL SERVICE), which can't read files under a user
 // profile, so it lives in Program Files.
-std::wstring InstallDir() {
-  wchar_t pf[MAX_PATH];
-  GetEnvironmentVariableW(L"ProgramFiles", pf, MAX_PATH);
-  return std::wstring(pf) + L"\\MobCam";
-}
+std::wstring InstallDir() { return KnownFolder(FOLDERID_ProgramFiles) + L"\\MobCam"; }
 
-std::wstring LogDir() {
-  wchar_t pd[MAX_PATH];
-  GetEnvironmentVariableW(L"ProgramData", pd, MAX_PATH);
-  return std::wstring(pd) + L"\\MobCam";
-}
+std::wstring LogDir() { return KnownFolder(FOLDERID_ProgramData) + L"\\MobCam"; }
 
 void StopService(const wchar_t* name) {
   SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
