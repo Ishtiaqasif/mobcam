@@ -6,29 +6,32 @@ namespace mobcam {
 
 namespace {
 
-constexpr UINT32 kFps = 30;
-constexpr LONGLONG kFrameDuration = 10'000'000 / kFps;  // 100 ns units
+constexpr UINT32 kDefaultFps = 30;
 
-struct Size {
-  UINT32 w, h;
+struct Format {
+  UINT32 w, h, fps;
 };
-// All 16:9 so scaling from the 1920x1080 canvas never distorts.
-constexpr Size kSizes[] = {{1920, 1080}, {1280, 720}, {640, 360}};
+// All 16:9 so scaling from the 1920x1080 canvas never distorts. The 30 fps formats come first:
+// apps that take the first format get 30, which is what video calls use. An app that asks for 60
+// gets 60 frames a second; while the phone streams at 30, every frame is shown twice.
+constexpr Format kFormats[] = {{1920, 1080, 30}, {1280, 720, 30}, {640, 360, 30},
+                               {1920, 1080, 60}, {1280, 720, 60}, {640, 360, 60}};
 
-HRESULT MakeNv12Type(UINT32 w, UINT32 h, IMFMediaType** out) {
+HRESULT MakeNv12Type(const Format& f, IMFMediaType** out) {
+  const UINT32 w = f.w, h = f.h;
   ComPtr<IMFMediaType> t;
   MC_RETURN_IF_FAILED(MFCreateMediaType(&t));
   t->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
   t->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
   MFSetAttributeSize(t.Get(), MF_MT_FRAME_SIZE, w, h);
-  MFSetAttributeRatio(t.Get(), MF_MT_FRAME_RATE, kFps, 1);
+  MFSetAttributeRatio(t.Get(), MF_MT_FRAME_RATE, f.fps, 1);
   MFSetAttributeRatio(t.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
   t->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
   t->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
   t->SetUINT32(MF_MT_FIXED_SIZE_SAMPLES, TRUE);
   t->SetUINT32(MF_MT_DEFAULT_STRIDE, w);
   t->SetUINT32(MF_MT_SAMPLE_SIZE, w * h * 3 / 2);
-  t->SetUINT32(MF_MT_AVG_BITRATE, w * h * 12 * kFps);
+  t->SetUINT32(MF_MT_AVG_BITRATE, w * h * 12 * f.fps);
   t->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_16_235);
   *out = t.Detach();
   return S_OK;
@@ -46,9 +49,9 @@ HRESULT MediaStream::RuntimeClassInitialize(IMFMediaSource* source, DWORD stream
 
   MC_RETURN_IF_FAILED(MFCreateEventQueue(&queue_));
 
-  IMFMediaType* types[_countof(kSizes)] = {};
-  for (size_t i = 0; i < _countof(kSizes); ++i) {
-    HRESULT hr = MakeNv12Type(kSizes[i].w, kSizes[i].h, &types[i]);
+  IMFMediaType* types[_countof(kFormats)] = {};
+  for (size_t i = 0; i < _countof(kFormats); ++i) {
+    HRESULT hr = MakeNv12Type(kFormats[i], &types[i]);
     if (FAILED(hr)) {
       for (auto* t : types)
         if (t) t->Release();
@@ -88,6 +91,12 @@ HRESULT MediaStream::StartLocked(IMFMediaType* type) {
     MC_RETURN_IF_FAILED(handler->GetCurrentMediaType(&current));
   }
   MC_RETURN_IF_FAILED(MFGetAttributeSize(current.Get(), MF_MT_FRAME_SIZE, &width_, &height_));
+  UINT32 fpsNum = 0, fpsDen = 0;
+  if (FAILED(MFGetAttributeRatio(current.Get(), MF_MT_FRAME_RATE, &fpsNum, &fpsDen)) || fpsNum == 0 || fpsDen == 0) {
+    fpsNum = kDefaultFps;
+    fpsDen = 1;
+  }
+  frameDuration_ = std::max<LONGLONG>(10'000'000LL * fpsDen / fpsNum, 10'000'000 / 120);
 
   // Frame Server normally hands us an allocator; create our own if it didn't.
   if (!allocator_) MC_RETURN_IF_FAILED(MFCreateVideoSampleAllocatorEx(IID_PPV_ARGS(&allocator_)));
@@ -96,7 +105,7 @@ HRESULT MediaStream::StartLocked(IMFMediaType* type) {
 
   nextDue_ = 0;
   state_ = MF_STREAM_STATE_RUNNING;
-  Log(L"MediaStream: started %ux%u", width_, height_);
+  Log(L"MediaStream: started %ux%u at %u/%u fps", width_, height_, fpsNum, fpsDen);
   MC_RETURN_IF_FAILED(queue_->QueueEventParamVar(MEStreamStarted, GUID_NULL, S_OK, nullptr));
   return S_OK;
 }
@@ -182,7 +191,7 @@ STDMETHODIMP MediaStream::GetStreamDescriptor(IMFStreamDescriptor** descriptor) 
 STDMETHODIMP MediaStream::RequestSample(IUnknown* token) {
   ComPtr<IMFVideoSampleAllocatorEx> allocator;
   UINT32 width, height;
-  LONGLONG wait = 0;
+  LONGLONG wait = 0, frameDuration = 0;
   {
     std::lock_guard<std::mutex> guard(lock_);
     if (!queue_ || !allocator_) return MF_E_SHUTDOWN;
@@ -190,19 +199,20 @@ STDMETHODIMP MediaStream::RequestSample(IUnknown* token) {
     allocator = allocator_;
     width = width_;
     height = height_;
+    frameDuration = frameDuration_;
 
-    // Pace output to ~30 fps; consumers may ask for samples back-to-back.
+    // Pace output to the format's frame rate; consumers may ask for samples back-to-back.
     const LONGLONG now = MFGetSystemTime();
     if (nextDue_ > now) wait = nextDue_ - now;
-    nextDue_ = std::max(now, nextDue_) + kFrameDuration;
+    nextDue_ = std::max(now, nextDue_) + frameDuration;
   }
-  if (wait > 0) Sleep(DWORD(std::min<LONGLONG>(wait, 2 * kFrameDuration) / 10'000));
+  if (wait > 0) Sleep(DWORD(std::min<LONGLONG>(wait, 2 * frameDuration) / 10'000));
 
   ComPtr<IMFSample> sample;
   MC_RETURN_IF_FAILED(allocator->AllocateSample(&sample));
   MC_RETURN_IF_FAILED(WriteFrame(sample.Get(), width, height));
   MC_RETURN_IF_FAILED(sample->SetSampleTime(MFGetSystemTime()));
-  MC_RETURN_IF_FAILED(sample->SetSampleDuration(kFrameDuration));
+  MC_RETURN_IF_FAILED(sample->SetSampleDuration(frameDuration));
   if (token) MC_RETURN_IF_FAILED(sample->SetUnknown(MFSampleExtension_Token, token));
 
   std::lock_guard<std::mutex> guard(lock_);

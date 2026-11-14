@@ -41,7 +41,7 @@ class Engine {
   int VcamState() {
     std::lock_guard<std::mutex> g(vcamMu_);
     if (vcam_.running()) return MC_VCAM_RUNNING;
-    if (vcamError_) return MC_VCAM_FAILED;
+    if (FAILED(vcamError_)) return MC_VCAM_FAILED;  // 0 or the HRESULT of the last failed start
     if (!IsSourceRegistered()) return MC_VCAM_NOT_INSTALLED;
     return IsSourceOutdated() ? MC_VCAM_OUTDATED : MC_VCAM_INSTALLED;
   }
@@ -258,6 +258,7 @@ class Engine {
     status_.phone_rotation = -1;
     status_.phone_facing = -1;
     status_.phone_target_height = 0;
+    status_.phone_fps = status_.phone_max_fps = 0;
     status_.phone_lens = -1;
     status_.lens_count = 0;
     lenses_.clear();
@@ -524,8 +525,9 @@ class Engine {
         Render(frame, assembler.phone().rotation);
       };
       assembler.onAccessUnit = [&](const std::vector<uint8_t>& au, bool) {
-        decoder.Decode(au.data(), au.size(), timestamp, onFrame);
-        timestamp += 333333;
+        const LONGLONG duration = 10'000'000 / assembler.phone().StreamFps();
+        decoder.Decode(au.data(), au.size(), timestamp, duration, onFrame);
+        timestamp += duration;
       };
 
       auto onVideo = [&](const uint8_t* data, size_t length) { assembler.Push(data, length); };
@@ -552,6 +554,8 @@ class Engine {
           status_.phone_rotation = info.rotation;
           status_.phone_facing = info.facing;
           status_.phone_target_height = info.targetHeight;
+          status_.phone_fps = info.targetFps;
+          status_.phone_max_fps = info.maxFps;
           status_.phone_lens = info.lensIndex;
           if (!info.lenses.empty()) lenses_ = info.lenses;
           status_.lens_count = int32_t(lenses_.size());

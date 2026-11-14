@@ -6,6 +6,28 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-11-14
+### Added
+- **New version notice** in both apps, only if you allow it: the first time each app starts, it
+  asks whether to check GitHub for new versions. If you say yes, it checks once a day and shows a
+  notice with a link to the release page when there's a newer version (*Later* hides it until the
+  next one). Nothing is downloaded or installed. Change it any time: *Check GitHub for new
+  versions* in the Windows app's App section, or in *About* on the phone. The privacy statement
+  describes exactly what is sent.
+- **60 fps** for smoother motion in OBS, Discord, browsers and recording apps: a *30 fps / 60 fps*
+  switch next to the resolution, on the phone and in the Windows app (they stay in sync), and
+  `--fps 30|60` for `mobcam-cli`. 30 stays the default, since Zoom, Teams and Meet send at most 30.
+  Where a lens can't do 60 fps at the chosen resolution, MobCam streams at 30 and says so. The
+  virtual camera now also offers 60 fps formats; update it when the Windows app asks. Both apps
+  need this version for 60 fps; with an older phone app the switch is disabled.
+
+### Changed
+- The phone uses the newer Android camera session API on Android 9 and later.
+- The phone app is left out of Android backups and phone-to-phone transfers, so its paired PCs
+  and settings stay on that phone. On a new phone, pair your PCs again.
+- The Windows app and the virtual camera find Program Files and ProgramData through Windows
+  itself instead of environment variables.
+
 ## [1.2.0] - 2026-11-13
 ### Added
 - **Keep streaming in background** (phone, off by default): while a PC is connected, the camera
@@ -63,7 +85,8 @@ First release.
 - Installer that sets up the app and the virtual camera in one step.
 - `mobcam-cli` command-line client.
 
-[Unreleased]: https://github.com/Ishtiaqasif/mobcam/compare/v1.2.0...dev
+[Unreleased]: https://github.com/Ishtiaqasif/mobcam/compare/v1.2.4...dev
+[1.2.4]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.2.4
 [1.2.0]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.0.0

@@ -107,6 +107,25 @@
         <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
             <StackPanel>
 
+                <!-- Updates: the first-launch question, then "new version available" (UpdateCheck) -->
+                <Border x:Name="UpdateCard" Style="{StaticResource Card}" Visibility="Collapsed">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE895;" FontSize="18" Margin="0,0,12,0"
+                                       VerticalAlignment="Top" />
+                            <StackPanel>
+                                <TextBlock x:Name="UpdateTitle" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="UpdateText" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                            <Button x:Name="UpdateNoButton" Padding="14,4" Margin="0,0,8,0" Click="OnUpdateNo" />
+                            <Button x:Name="UpdateYesButton" Style="{DynamicResource AccentButtonStyle}" Padding="14,4"
+                                    Click="OnUpdateYes" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Virtual camera -->
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
@@ -210,6 +229,12 @@
                             <RadioButton x:Name="Res720" GroupName="Res" Content="720p" Tag="720" Style="{StaticResource Segment}" Click="OnResolutionClick" />
                             <RadioButton x:Name="Res1080" GroupName="Res" Content="1080p" Tag="1080" Style="{StaticResource Segment}" Click="OnResolutionClick" />
                         </StackPanel>
+                        <TextBlock Text="Frame rate" Style="{StaticResource Label}" Margin="0,8,0,0" />
+                        <StackPanel x:Name="FpsPanel" Orientation="Horizontal">
+                            <RadioButton x:Name="Fps30" GroupName="Fps" Content="30 fps" Tag="30" Style="{StaticResource Segment}" Click="OnFrameRateClick" />
+                            <RadioButton x:Name="Fps60" GroupName="Fps" Content="60 fps" Tag="60" Style="{StaticResource Segment}" Click="OnFrameRateClick" />
+                        </StackPanel>
+                        <TextBlock x:Name="FpsHint" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
                         <TextBlock x:Name="PhoneHint" Style="{StaticResource Caption}" Margin="0,10,0,0"
                                    Text="Connect a phone to control its camera from here." />
                     </StackPanel>
@@ -269,6 +294,10 @@
                         <CheckBox x:Name="AutoConnectBox" Content="Connect automatically when MobCam starts" Click="OnAppOptionClick" />
                         <CheckBox x:Name="StartupBox" Content="Start with Windows (in the tray)" Click="OnAppOptionClick" Margin="0,6,0,0" />
                         <CheckBox x:Name="TrayBox" Content="Keep running in the tray when closed" Click="OnAppOptionClick" Margin="0,6,0,0" />
+                        <CheckBox x:Name="UpdateBox" Click="OnUpdateBoxClick" Margin="0,6,0,0"
+                                  ToolTip="Once a day, ask GitHub for the latest version number. Nothing is downloaded or installed.">
+                            <TextBlock Text="Check GitHub for new versions" TextWrapping="Wrap" />
+                        </CheckBox>
                         <DockPanel Margin="0,12,0,0">
                             <Button DockPanel.Dock="Right" Content="About" Padding="12,3" Click="OnAbout"
                                     VerticalAlignment="Center" ToolTip="Version, privacy and licences" />

@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <string>
 
+#include "../common/known_folder.h"
 #include "../common/mobcam_ids.h"
 #include "activator.h"
 #include "common.h"
@@ -26,10 +27,12 @@ void Log(const wchar_t* format, ...) {
   OutputDebugStringW(line);
 
   // Optional file log; the directory is created by `mobcam install`.
-  wchar_t path[MAX_PATH];
-  if (GetEnvironmentVariableW(L"ProgramData", path, MAX_PATH) == 0) return;
-  wcscat_s(path, L"\\MobCam\\mobcam-source.log");
-  HANDLE f = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
+  static const std::wstring path = [] {
+    const std::wstring programData = KnownFolder(FOLDERID_ProgramData);
+    return programData.empty() ? std::wstring() : programData + L"\\MobCam\\mobcam-source.log";
+  }();
+  if (path.empty()) return;
+  HANDLE f = CreateFileW(path.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL, nullptr);
   if (f == INVALID_HANDLE_VALUE) return;
   char utf8[2400];

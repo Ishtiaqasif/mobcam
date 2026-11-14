@@ -49,7 +49,7 @@ Paired devices are listed under **Paired PCs** on the phone and **Paired phones*
 
 ## Features
 
-- **Up to 1080p at 30 fps**, hardware H.264 encoding on the phone and low-latency decoding on the PC
+- **Up to 1080p at 30 or 60 fps** (60 where the phone's camera supports it), hardware H.264 encoding on the phone and low-latency decoding on the PC
 - **Real Windows camera**: shows up as *MobCam* in every app, no OBS or plugins needed
 - **USB or Wi-Fi**, with automatic discovery and reconnection
 - **Private**: Wi-Fi needs a one-time pairing confirmed on both devices, and video and commands are
@@ -69,9 +69,10 @@ Paired devices are listed under **Paired PCs** on the phone and **Paired phones*
 ## Privacy
 
 No accounts, no analytics, no ads, no servers. The video goes from your phone to your own PC,
-over the USB cable or your local network, and is never recorded or sent anywhere else. Neither
-app connects to the internet. Pairings and settings stay on your devices. Details, including
-what is stored where and how to remove it: [PRIVACY.md](PRIVACY.md).
+over the USB cable or your local network, and is never recorded or sent anywhere else. The only
+time MobCam goes online is to ask GitHub for the latest version number, and only if you allow it
+(each app asks once). Pairings and settings stay on your devices. Details, including what is
+stored where and how to remove it: [PRIVACY.md](PRIVACY.md).
 
 ## How it works
 

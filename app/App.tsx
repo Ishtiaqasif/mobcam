@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 
 import {
+  FRAME_RATES,
   MobcamPreview,
   MobcamStream,
   RESOLUTIONS,
@@ -25,6 +26,7 @@ import {
   type PairedPc,
   type PairingRequest,
 } from './modules/mobcam-stream';
+import { currentVersion, type Updates, useUpdateCheck } from './updates';
 
 type Permission = 'unknown' | 'granted' | 'denied' | 'blocked';
 
@@ -33,7 +35,8 @@ const REPO_URL = 'https://github.com/Ishtiaqasif/mobcam';
 const PRIVACY_SUMMARY =
   'No accounts, no analytics, no ads, no servers. The video goes from this phone to your own PC, ' +
   'over the USB cable or your local network, and is never recorded or sent anywhere else. ' +
-  'MobCam doesn’t connect to the internet. Pairings stay on your devices.';
+  'The only time MobCam goes online is to ask GitHub for the latest version number, and only if you allow it. ' +
+  'Pairings stay on your devices.';
 
 export default function App() {
   const [permission, setPermission] = useState<Permission>('unknown');
@@ -61,6 +64,7 @@ export default function App() {
 
 function Streaming() {
   const status = useEvent(MobcamStream, 'onStatus', MobcamStream.getStatus()) as MobcamStatus;
+  const updates = useUpdateCheck();
 
   useEffect(() => {
     MobcamStream.start();
@@ -90,6 +94,8 @@ function Streaming() {
         <Text style={styles.title}>MobCam</Text>
 
         <ConnectionLine status={status} />
+
+        <UpdateCard updates={updates} />
 
         <View style={styles.block}>
           <Text style={styles.label}>Wi-Fi address</Text>
@@ -122,6 +128,8 @@ function Streaming() {
             })}
           </View>
         </View>
+
+        <FrameRate status={status} />
 
         <View style={styles.block}>
           <Text style={styles.label}>
@@ -158,7 +166,7 @@ function Streaming() {
         {status.notice ? <Text style={styles.notice}>{status.notice}</Text> : null}
 
         <PairedPcsButton />
-        <AboutButton />
+        <AboutButton updates={updates} />
 
         <Text style={styles.version}>{versionLabel()}</Text>
       </ScrollView>
@@ -270,8 +278,41 @@ function PairedPcsButton() {
   );
 }
 
-/** Version, privacy summary, links and the third-party licences. */
-function AboutButton() {
+/** First-launch question about the update check, then "new version available" (#16). */
+function UpdateCard({ updates }: { updates: Updates }) {
+  const asking = updates.consent === null;
+  if (!asking && !updates.available) return null;
+  return (
+    <View style={styles.card}>
+      <Text style={styles.switchLabel}>
+        {asking ? 'Check for new versions?' : `MobCam ${updates.available} is available`}
+      </Text>
+      <Text style={styles.hint}>
+        {asking
+          ? 'Once a day, MobCam can ask GitHub for the latest version number. Nothing else is sent, and nothing is ' +
+            'downloaded or installed. You can change this later in About.'
+          : `You have ${currentVersion()}. Download the new APK from the release page.`}
+      </Text>
+      <View style={styles.dialogButtons}>
+        <Pressable
+          style={[styles.cardButton, styles.denyButton]}
+          onPress={() => (asking ? updates.setConsent(false) : updates.skip())}
+        >
+          <Text style={styles.cardButtonText}>{asking ? 'No thanks' : 'Later'}</Text>
+        </Pressable>
+        <Pressable
+          style={styles.cardButton}
+          onPress={() => (asking ? updates.setConsent(true) : Linking.openURL(updates.url))}
+        >
+          <Text style={styles.cardButtonText}>{asking ? 'Yes' : 'Download'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/** Version, privacy summary, update check setting, links and the third-party licences. */
+function AboutButton({ updates }: { updates: Updates }) {
   const [open, setOpen] = useState(false);
   const [licences, setLicences] = useState(false);
 
@@ -293,6 +334,16 @@ function AboutButton() {
                 </Text>
                 <Text style={styles.label}>Privacy</Text>
                 <Text style={styles.muted}>{PRIVACY_SUMMARY}</Text>
+                <View style={[styles.switchRow, styles.aboutSwitch]}>
+                  <Text style={styles.switchLabel}>Check GitHub for new versions</Text>
+                  <Switch
+                    value={updates.consent === true}
+                    onValueChange={updates.setConsent}
+                    trackColor={{ true: '#2b6fff', false: '#3a3f47' }}
+                    thumbColor="#fff"
+                  />
+                </View>
+                <Text style={styles.hint}>Once a day. Nothing is downloaded or installed.</Text>
               </ScrollView>
               <View style={styles.aboutLinks}>
                 <Pressable onPress={() => Linking.openURL(REPO_URL)}>
@@ -380,6 +431,39 @@ function versionLabel(): string {
   if (extra.commit) parts.push(extra.commit);
   if (extra.modified) parts.push('modified');
   return parts.join(' · ');
+}
+
+/** 30 / 60 fps next to the resolution (#47). The PC app can change it too. */
+function FrameRate({ status }: { status: MobcamStatus }) {
+  // maxFps is known once the camera ran with the current lens and size.
+  const noSixty = status.maxFps > 0 && status.maxFps < 60;
+  return (
+    <View style={styles.block}>
+      <Text style={styles.label}>Frame rate{status.fps > 0 ? `  ·  ${status.fps} fps` : ''}</Text>
+      <View style={styles.segment}>
+        {FRAME_RATES.map((f) => {
+          const selected = status.targetFps === f;
+          const dim = f === 60 && noSixty && !selected;
+          return (
+            <Pressable
+              key={f}
+              onPress={() => MobcamStream.setFrameRate(f)}
+              style={[styles.segmentItem, selected && styles.segmentItemOn]}
+            >
+              <Text style={[styles.segmentText, selected && styles.segmentTextOn, dim && styles.segmentTextDim]}>
+                {f} fps
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.hint}>
+        {status.targetFps === 60 && noSixty
+          ? `This camera can’t do 60 fps at ${status.height}p, so it streams at 30. Try a lower resolution or another lens.`
+          : 'Smoother in OBS, Discord and browsers. Zoom, Teams and Meet use at most 30.'}
+      </Text>
+    </View>
+  );
 }
 
 /** "Keep streaming in background" (opt-in, decision in #15). */
@@ -498,6 +582,7 @@ const styles = StyleSheet.create({
   segmentItemOn: { backgroundColor: '#2b6fff' },
   segmentText: { color: '#8a8f98', fontWeight: '600' },
   segmentTextOn: { color: '#fff' },
+  segmentTextDim: { color: '#4a4f57' },
   switchButton: {
     backgroundColor: '#2b6fff',
     borderRadius: 12,
@@ -551,6 +636,10 @@ const styles = StyleSheet.create({
   pcInfo: { flex: 1 },
   forget: { color: '#ff5a5f', fontWeight: '600' },
   aboutBody: { gap: 6 },
+  aboutSwitch: { marginTop: 8 },
+  card: { backgroundColor: '#1c2026', borderRadius: 12, padding: 12, gap: 2 },
+  cardButton: { flex: 1, backgroundColor: '#2b6fff', borderRadius: 10, paddingVertical: 8, alignItems: 'center' },
+  cardButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   aboutLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginTop: 4 },
   licences: { flex: 1, backgroundColor: '#0d0f12', paddingHorizontal: 20, paddingTop: 16 },
   licencesHeader: {
