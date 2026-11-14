@@ -8,6 +8,9 @@ export type Facing = 'back' | 'front';
 export const RESOLUTIONS = [480, 720, 1080] as const;
 export type Resolution = (typeof RESOLUTIONS)[number];
 
+/** Frame rates offered in the UI. 60 is used only where the lens supports it at the chosen size. */
+export const FRAME_RATES = [30, 60] as const;
+
 export type Lens = {
   /** "Ultra-wide", "Wide", "Telephoto", "Front"... */
   label: string;
@@ -26,6 +29,12 @@ export type MobcamStatus = {
   lenses: Lens[];
   /** Requested max height (480 / 720 / 1080). */
   targetHeight: number;
+  /** Frame rate setting (30 / 60). */
+  targetFps: number;
+  /** Highest frame rate the current lens offers at the current size; 0 = not known yet. */
+  maxFps: number;
+  /** Frame rate being streamed; 0 while starting/stopped. */
+  fps: number;
   /** Actual encoded size; 0 while starting/stopped. */
   width: number;
   height: number;
@@ -73,6 +82,8 @@ declare class MobcamStreamModule extends NativeModule<MobcamEvents> {
   switchCamera(): void;
   selectLens(index: number): void;
   setResolution(height: number): void;
+  /** 30 or 60 fps (60 falls back to 30 where the lens can't do it). */
+  setFrameRate(fps: number): void;
   /** Keep streaming with the screen off or another app open, while a PC is connected. */
   setBackgroundStreaming(on: boolean): void;
   getStatus(): MobcamStatus;

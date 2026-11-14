@@ -103,14 +103,20 @@ def sei_nal(uuid: str, text: str) -> bytes:
 def sei() -> None:
     lenses = [("Ultra-wide", "0.6", "b"), ("Wide", "1", "b"), ("Telephoto", "3.4", "b"), ("Front", "1", "f")]
     values: list[tuple[str, object]] = []
-    # metadata: rotation quarter turns, facing, 4-digit target height, 2-digit lens index
-    for i, (rotation, facing, height, lens) in enumerate([(90, "b", 720, 1), (270, "f", 1080, 3)]):
+    # metadata: rotation quarter turns, facing, 4-digit target height, 2-digit lens index,
+    # 2-digit frame rate setting, 2-digit highest frame rate of the current lens at this size
+    for i, (rotation, facing, height, lens, fps, max_fps) in enumerate(
+        [(90, "b", 720, 1, 30, 60), (270, "f", 1080, 3, 60, 30)]
+    ):
+        text = f"{rotation // 90}{facing}{height:04d}{lens:02d}{fps:02d}{max_fps:02d}"
         values += [
             (f"metadata{i}.rotation", rotation),
             (f"metadata{i}.facing", facing),
             (f"metadata{i}.height", height),
             (f"metadata{i}.lens", lens),
-            (f"metadata{i}.nal", sei_nal("MOBCAM-ROTATION!", f"{rotation // 90}{facing}{height:04d}{lens:02d}")),
+            (f"metadata{i}.fps", fps),
+            (f"metadata{i}.maxfps", max_fps),
+            (f"metadata{i}.nal", sei_nal("MOBCAM-ROTATION!", text)),
         ]
     for i, (label, zoom, facing) in enumerate(lenses):
         values.append((f"lens{i}", f"{label}|{zoom}|{facing}"))

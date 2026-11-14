@@ -49,7 +49,7 @@ Paired devices are listed under **Paired PCs** on the phone and **Paired phones*
 
 ## Features
 
-- **Up to 1080p at 30 fps**, hardware H.264 encoding on the phone and low-latency decoding on the PC
+- **Up to 1080p at 30 or 60 fps** (60 where the phone's camera supports it), hardware H.264 encoding on the phone and low-latency decoding on the PC
 - **Real Windows camera**: shows up as *MobCam* in every app, no OBS or plugins needed
 - **USB or Wi-Fi**, with automatic discovery and reconnection
 - **Private**: Wi-Fi needs a one-time pairing confirmed on both devices, and video and commands are

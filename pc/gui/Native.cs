@@ -37,6 +37,8 @@ internal static unsafe class Native
         public int PairingCode; // 0..999999 while State == StatePairing, else -1
         public int Problem;
         public int PairingStage; // PairingNone / PairingConfirm / PairingWaitPhone / PairingWaitUser
+        public int PhoneFps;     // frame rate setting 30 / 60; 0 = phone app without it
+        public int PhoneMaxFps;  // highest frame rate of the phone's lens at this size; 0 unknown
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

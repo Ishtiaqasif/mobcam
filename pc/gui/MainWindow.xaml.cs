@@ -393,7 +393,13 @@ public partial class MainWindow : Window
                 Res720.IsChecked = s.PhoneTargetHeight == 720;
                 Res1080.IsChecked = s.PhoneTargetHeight == 1080;
             }
+            if (s.PhoneFps > 0)
+            {
+                Fps30.IsChecked = s.PhoneFps < 60;
+                Fps60.IsChecked = s.PhoneFps >= 60;
+            }
         }
+        UpdateFrameRateUi(s, live);
 
         Tray?.Update(live ? $"MobCam · Live over {link} ({s.Width}×{s.Height})" : $"MobCam · {pill}", _wantConnected);
     }
@@ -489,6 +495,33 @@ public partial class MainWindow : Window
         if ((sender as FrameworkElement)?.Tag is not string tag) return;
         PausePhoneSync();
         Native.mc_phone_command($"RES {tag}");
+    }
+
+    /// <summary>30 / 60 fps: only for phone apps that report the setting; explains when 60 isn't possible.</summary>
+    private void UpdateFrameRateUi(Native.Status s, bool live)
+    {
+        bool supported = live && s.PhoneFps > 0;
+        FpsPanel.IsEnabled = supported;
+        string? hint = null;
+        if (live && s.PhoneFps == 0)
+        {
+            hint = "Update the MobCam app on the phone to choose 60 fps.";
+        }
+        else if (supported && s.PhoneFps >= 60 && s.PhoneMaxFps > 0 && s.PhoneMaxFps < 60)
+        {
+            hint = $"This phone camera can't do 60 fps at {s.PhoneTargetHeight}p, so it streams at 30. " +
+                   "Try a lower resolution or another lens.";
+        }
+
+        FpsHint.Text = hint ?? "";
+        FpsHint.Visibility = hint == null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OnFrameRateClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string tag) return;
+        PausePhoneSync();
+        Native.mc_phone_command($"FPS {tag}");
     }
 
     private void OnRotationClick(object sender, RoutedEventArgs e)

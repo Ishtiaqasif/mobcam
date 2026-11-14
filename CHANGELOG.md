@@ -12,6 +12,15 @@ uses [Semantic Versioning](https://semver.org/).
   next one). Nothing is downloaded or installed. Change it any time: *Check GitHub for new
   versions* in the Windows app's App section, or in *About* on the phone. The privacy statement
   describes exactly what is sent.
+- **60 fps** for smoother motion in OBS, Discord, browsers and recording apps: a *30 fps / 60 fps*
+  switch next to the resolution, on the phone and in the Windows app (they stay in sync), and
+  `--fps 30|60` for `mobcam-cli`. 30 stays the default, since Zoom, Teams and Meet send at most 30.
+  Where a lens can't do 60 fps at the chosen resolution, MobCam streams at 30 and says so. The
+  virtual camera now also offers 60 fps formats; update it when the Windows app asks. Both apps
+  need this version for 60 fps; with an older phone app the switch is disabled.
+
+### Changed
+- The phone uses the newer Android camera session API on Android 9 and later.
 
 ## [1.2.0] - 2026-11-13
 ### Added

@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 private const val TAG = "MobcamServer"
-private const val MAX_QUEUED_FRAMES = 30 // ~1 s at 30 fps
+private const val QUEUE_CAPACITY = 60 // 1 s at 60 fps; see maxQueuedFrames
 
 /**
  * Serves the H.264 stream to PCs over protocol v2 (docs/protocol.md): every connection runs the
@@ -26,7 +26,7 @@ class StreamServer(
   private val gate: PairingGate,
   private val onClientsChanged: () -> Unit,
   private val onKeyFrameNeeded: () -> Unit,
-  /** Remote-control commands from the PC ("SWITCH", "RES 720", ...). */
+  /** Remote-control commands from the PC ("SWITCH", "RES 720", "FPS 60", ...). */
   private val onCommand: (String) -> Unit,
   /** A PC with a different protocol version connected (null = an old v1 PC). */
   private val onVersionMismatch: (Int?) -> Unit,
@@ -36,7 +36,7 @@ class StreamServer(
 
   private class Client(val socket: Socket, val channel: SecureChannel) {
     val usb: Boolean = socket.inetAddress.isLoopbackAddress
-    val queue = LinkedBlockingQueue<ByteArray>(MAX_QUEUED_FRAMES)
+    val queue = LinkedBlockingQueue<ByteArray>(QUEUE_CAPACITY)
     @Volatile var synced = false // touched only by the encoder thread
     @Volatile var open = true
 
@@ -48,6 +48,12 @@ class StreamServer(
   private val handshaking = CopyOnWriteArrayList<Socket>()
   @Volatile private var serverSocket: ServerSocket? = null
   @Volatile private var running = false
+
+  /** About one second of frames at the current frame rate; a client further behind resyncs. */
+  @Volatile var maxQueuedFrames = 30
+    set(value) {
+      field = value.coerceIn(1, QUEUE_CAPACITY)
+    }
 
   val clientCount: Int get() = clients.count { !it.awaitingPc }
   val usbClientCount: Int get() = clients.count { it.usb && !it.awaitingPc }
@@ -73,7 +79,7 @@ class StreamServer(
         if (!keyFrame) continue // a decoder can only start on a keyframe
         c.synced = true
       }
-      if (!c.queue.offer(data)) {
+      if (c.queue.size >= maxQueuedFrames || !c.queue.offer(data)) {
         // Client can't keep up (weak Wi-Fi). Drop the backlog and resync on the next keyframe.
         c.queue.clear()
         c.synced = false

@@ -127,7 +127,11 @@ class MobcamStreamModule : Module() {
       }
       orientation?.enable()
       eng.sink = server
-      eng.onState = { engineState = it; emitStatus() }
+      eng.onState = { state ->
+        engineState = state
+        if (state.fps > 0) server?.maxQueuedFrames = state.fps
+        emitStatus()
+      }
       started = true
       eng.start()
       configureWindow()
@@ -138,6 +142,8 @@ class MobcamStreamModule : Module() {
     Function("selectLens") { index: Int -> engine?.selectLens(index) }
 
     Function("setResolution") { height: Int -> engine?.setResolution(height) }
+
+    Function("setFrameRate") { fps: Int -> engine?.setFrameRate(fps) }
 
     /**
      * "Keep streaming in background": while a PC is connected, a foreground service with an
@@ -235,6 +241,7 @@ class MobcamStreamModule : Module() {
       "SWITCH" -> eng.switchCamera()
       "FACING" -> eng.setFacing(if (parts.getOrNull(1)?.trim()?.lowercase() == "front") Facing.FRONT else Facing.BACK)
       "RES" -> parts.getOrNull(1)?.trim()?.toIntOrNull()?.let { eng.setResolution(it) }
+      "FPS" -> parts.getOrNull(1)?.trim()?.toIntOrNull()?.let { eng.setFrameRate(it) }
       "LENS" -> parts.getOrNull(1)?.trim()?.toIntOrNull()?.let { eng.selectLens(it) }
     }
   }
@@ -303,6 +310,9 @@ class MobcamStreamModule : Module() {
         mapOf("label" to l.label, "short" to l.shortLabel, "zoom" to l.zoom.toDouble(), "front" to l.front)
       },
       "targetHeight" to (s?.targetHeight ?: 720),
+      "targetFps" to (s?.targetFps ?: FPS_DEFAULT),
+      "maxFps" to (s?.maxFps ?: 0),
+      "fps" to (s?.fps ?: 0),
       "width" to (s?.width ?: 0),
       "height" to (s?.height ?: 0),
       "error" to s?.error,
