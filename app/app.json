@@ -2,7 +2,7 @@
   "expo": {
     "name": "MobCam",
     "slug": "mobcam",
-    "version": "1.2.0",
+    "version": "1.2.4",
     "platforms": ["android"],
     "orientation": "landscape",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
     "backgroundColor": "#0d0f12",
     "android": {
       "package": "com.mobcam.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#1F57D6",

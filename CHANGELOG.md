@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [1.2.4] - 2026-11-14
 ### Added
 - **New version notice** in both apps, only if you allow it: the first time each app starts, it
   asks whether to check GitHub for new versions. If you say yes, it checks once a day and shows a
@@ -83,7 +85,8 @@ First release.
 - Installer that sets up the app and the virtual camera in one step.
 - `mobcam-cli` command-line client.
 
-[Unreleased]: https://github.com/Ishtiaqasif/mobcam/compare/v1.2.0...dev
+[Unreleased]: https://github.com/Ishtiaqasif/mobcam/compare/v1.2.4...dev
+[1.2.4]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.2.4
 [1.2.0]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Ishtiaqasif/mobcam/releases/tag/v1.0.0
