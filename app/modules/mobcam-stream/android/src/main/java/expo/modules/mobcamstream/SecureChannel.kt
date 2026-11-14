@@ -179,7 +179,7 @@ object Crypto {
     var i = 0
     fun readLen(): Int {
       var len = der[i++].toInt() and 0xFF
-      if (len and 0x80 != 0) {
+      if ((len and 0x80) != 0) {
         val n = len and 0x7F
         len = 0
         repeat(n) { len = (len shl 8) or (der[i++].toInt() and 0xFF) }
@@ -359,8 +359,9 @@ class SecureChannel(private val socket: Socket, private val phoneName: String) {
     if (commit.size < Proto.KEY_LEN + 32) throw ProtocolException("short COMMIT")
     val pcKeyBytes = commit.copyOfRange(0, Proto.KEY_LEN)
     val pcKey = Crypto.decodePoint(pcKeyBytes)
-    val commitment = commit.copyOfRange(Proto.KEY_LEN, Proto.KEY_LEN + 32)
-    val pcName = String(commit, Proto.KEY_LEN + 32, commit.size - Proto.KEY_LEN - 32, Charsets.UTF_8).take(64)
+    val nameStart = Proto.KEY_LEN + 32
+    val commitment = commit.copyOfRange(Proto.KEY_LEN, nameStart)
+    val pcName = String(commit, nameStart, commit.size - nameStart, Charsets.UTF_8).take(64)
 
     // HELLO
     val eph = Crypto.ephemeral()

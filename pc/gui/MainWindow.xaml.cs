@@ -270,7 +270,7 @@ public partial class MainWindow : Window
         (string glyph, Brush brush, string text, string? button) = state switch
         {
             Native.VcamRunning => ("", Res("SystemFillColorSuccessBrush"),
-                "“MobCam” is available to your apps.", (string?)null),
+                "“MobCam” is available to your apps.", null),
             Native.VcamNotInstalled => ("", Res("SystemFillColorCautionBrush"),
                 "Not installed yet. Needs administrator permission once.", "Install virtual camera"),
             Native.VcamOutdated => ("", Res("SystemFillColorCautionBrush"),

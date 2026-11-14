@@ -550,10 +550,10 @@ class StreamEngine(context: Context) {
             val bytes = ByteArray(info.size)
             buffer.position(info.offset)
             buffer.get(bytes, 0, info.size)
-            if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
+            if ((info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
               config = bytes
             } else {
-              val key = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
+              val key = (info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0
               val cfg = config
               val sei = rotationSei(currentRotation())
               // Trailing access unit delimiter marks the frame as complete for the receiver.

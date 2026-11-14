@@ -55,6 +55,10 @@ Everything stays on your own devices.
 The phone sends the PC its model name, and the PC sends the phone its computer name, so each
 side can show which device is paired.
 
+The phone app is excluded from Android backups (Google backup and device-to-device transfer),
+so nothing it stores is copied to the cloud or to a new phone. On a new phone, pair your PCs
+again.
+
 ## Removing your data
 
 - **Forget a device:** *Paired PCs* on the phone, *Paired phones* in the Windows app.

@@ -11,6 +11,7 @@
     "android": {
       "package": "com.mobcam.app",
       "versionCode": 3,
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#1F57D6",
         "foregroundImage": "./assets/android-icon-foreground.png",

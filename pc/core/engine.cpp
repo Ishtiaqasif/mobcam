@@ -41,7 +41,7 @@ class Engine {
   int VcamState() {
     std::lock_guard<std::mutex> g(vcamMu_);
     if (vcam_.running()) return MC_VCAM_RUNNING;
-    if (vcamError_) return MC_VCAM_FAILED;
+    if (FAILED(vcamError_)) return MC_VCAM_FAILED;  // 0 or the HRESULT of the last failed start
     if (!IsSourceRegistered()) return MC_VCAM_NOT_INSTALLED;
     return IsSourceOutdated() ? MC_VCAM_OUTDATED : MC_VCAM_INSTALLED;
   }
