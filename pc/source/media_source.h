@@ -5,10 +5,9 @@
 
 namespace mobcam {
 
-class MediaSource
-    : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
-                          ChainInterfaces<IMFMediaSourceEx, IMFMediaSource, IMFMediaEventGenerator>,
-                          IMFAttributes, IMFGetService, IKsControl, IMFSampleAllocatorControl, FtmBase> {
+class MediaSource : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
+                                        ChainInterfaces<IMFMediaSourceEx, IMFMediaSource, IMFMediaEventGenerator>,
+                                        IMFAttributes, IMFGetService, IKsControl, IMFSampleAllocatorControl, FtmBase> {
  public:
   HRESULT RuntimeClassInitialize(IMFAttributes* attributes);
 

@@ -17,15 +17,31 @@ object Sei {
 
   /**
    * Metadata sent with every frame. Payload after the UUID is ASCII: rotation digit ('0'..'3',
-   * quarter turns clockwise), facing ('b'/'f'), 4-digit target height ("0720"), 2-digit lens index.
+   * quarter turns clockwise), facing ('b'/'f'), 4-digit target height ("0720"), 2-digit lens index,
+   * 2-digit frame rate setting ("30"/"60") and 2-digit highest frame rate the current lens offers at
+   * the current size.
    */
-  fun metadata(rotation: Int, front: Boolean, targetHeight: Int, lensIndex: Int): ByteArray =
-    userData(METADATA_UUID, metadataText(rotation, front, targetHeight, lensIndex))
+  fun metadata(
+    rotation: Int,
+    front: Boolean,
+    targetHeight: Int,
+    lensIndex: Int,
+    targetFps: Int,
+    maxFps: Int,
+  ): ByteArray = userData(METADATA_UUID, metadataText(rotation, front, targetHeight, lensIndex, targetFps, maxFps))
 
-  fun metadataText(rotation: Int, front: Boolean, targetHeight: Int, lensIndex: Int): String =
-    "${(rotation / 90) and 3}${if (front) 'f' else 'b'}" +
-      targetHeight.coerceIn(0, 9999).toString().padStart(4, '0') +
-      lensIndex.coerceIn(0, 99).toString().padStart(2, '0')
+  fun metadataText(
+    rotation: Int,
+    front: Boolean,
+    targetHeight: Int,
+    lensIndex: Int,
+    targetFps: Int,
+    maxFps: Int,
+  ): String = "${(rotation / 90) and 3}${if (front) 'f' else 'b'}" +
+    targetHeight.coerceIn(0, 9999).toString().padStart(4, '0') +
+    lensIndex.coerceIn(0, 99).toString().padStart(2, '0') +
+    targetFps.coerceIn(0, 99).toString().padStart(2, '0') +
+    maxFps.coerceIn(0, 99).toString().padStart(2, '0')
 
   /**
    * "label,zoom,b|f;..." in lens-index order, e.g. "Ultra-wide,0.6,b;Wide,1,b;Front,1,f". Sent
@@ -34,7 +50,10 @@ object Sei {
   fun lensList(lenses: List<Lens>): ByteArray {
     val sb = StringBuilder()
     for (lens in lenses) {
-      val entry = "${lens.label.replace(',', ' ').replace(';', ' ')},${formatZoom(lens.zoom)},${if (lens.front) 'f' else 'b'}"
+      val entry = "${lens.label.replace(
+        ',',
+        ' ',
+      ).replace(';', ' ')},${formatZoom(lens.zoom)},${if (lens.front) 'f' else 'b'}"
       if (sb.length + entry.length + 1 > 220) break
       if (sb.isNotEmpty()) sb.append(';')
       sb.append(entry)

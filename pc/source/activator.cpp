@@ -22,9 +22,7 @@ STDMETHODIMP Activator::ActivateObject(REFIID riid, void** object) {
   return source_.CopyTo(riid, object);
 }
 
-STDMETHODIMP Activator::ShutdownObject() {
-  return S_OK;
-}
+STDMETHODIMP Activator::ShutdownObject() { return S_OK; }
 
 STDMETHODIMP Activator::DetachObject() {
   std::lock_guard<std::mutex> guard(lock_);

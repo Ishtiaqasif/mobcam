@@ -49,7 +49,7 @@ Paired devices are listed under **Paired PCs** on the phone and **Paired phones*
 
 ## Features
 
-- **Up to 1080p at 30 fps**, hardware H.264 encoding on the phone and low-latency decoding on the PC
+- **Up to 1080p at 30 or 60 fps** (60 where the phone's camera supports it), hardware H.264 encoding on the phone and low-latency decoding on the PC
 - **Real Windows camera**: shows up as *MobCam* in every app, no OBS or plugins needed
 - **USB or Wi-Fi**, with automatic discovery and reconnection
 - **Private**: Wi-Fi needs a one-time pairing confirmed on both devices, and video and commands are
@@ -69,9 +69,10 @@ Paired devices are listed under **Paired PCs** on the phone and **Paired phones*
 ## Privacy
 
 No accounts, no analytics, no ads, no servers. The video goes from your phone to your own PC,
-over the USB cable or your local network, and is never recorded or sent anywhere else. Neither
-app connects to the internet. Pairings and settings stay on your devices. Details, including
-what is stored where and how to remove it: [PRIVACY.md](PRIVACY.md).
+over the USB cable or your local network, and is never recorded or sent anywhere else. The only
+time MobCam goes online is to ask GitHub for the latest version number, and only if you allow it
+(each app asks once). Pairings and settings stay on your devices. Details, including what is
+stored where and how to remove it: [PRIVACY.md](PRIVACY.md).
 
 ## How it works
 
@@ -122,8 +123,13 @@ npm run phone:typecheck
 npm run pc:run          # build the PC side into pc\build\bin and start MobCam.exe
 npm run pc:test         # build and run the PC unit tests (doctest)
 npm run phone:test      # phone unit tests (JVM, no phone needed)
+npm run format          # format all code (C++, C#, Kotlin, TypeScript); `npm run lint` only checks
 npm run icons           # regenerate app icons (scripts/make-icons.ps1)
 ```
+
+**Formatting** uses each language's standard tool: clang-format 19 (`.clang-format`, Google style
+with 120 columns), `dotnet format` and ktlint (both configured in `.editorconfig`), and ESLint
+with Prettier for the phone app's TypeScript. The CI **Lint** job runs `npm run lint`.
 
 **Tests** cover the parts with exact inputs and outputs: splitting the H.264 stream and reading
 MobCam's SEI, rotation and Fit/Fill, lens labelling, and the protocol v2 key schedule and

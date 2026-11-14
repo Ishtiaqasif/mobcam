@@ -63,7 +63,7 @@ class RecordCipher {
 // ---------------------------------------------------------------- trusted phones (per Windows user)
 
 struct PairedPhone {
-  std::wstring id;    // hex SHA-256 of the phone's identity key
+  std::wstring id;  // hex SHA-256 of the phone's identity key
   std::wstring name;
   int64_t pairedAt = 0;  // Unix seconds
 };
@@ -75,19 +75,19 @@ bool ForgetPairedPhone(const std::wstring& id);
 
 enum class HandshakeResult {
   Ok,
-  PhoneTooOld,   // v1 phone app (no preamble) or an older protocol version
-  PhoneTooNew,   // phone speaks a newer protocol: update the PC app
-  Denied,        // phone sent DENIED, see deniedReason
-  NotPaired,     // Wi-Fi phone skipped pairing but this PC doesn't know it
-  Cancelled,     // this PC's user cancelled pairing or didn't confirm in time
-  Failed,        // I/O error, timeout, bad signature...
+  PhoneTooOld,  // v1 phone app (no preamble) or an older protocol version
+  PhoneTooNew,  // phone speaks a newer protocol: update the PC app
+  Denied,       // phone sent DENIED, see deniedReason
+  NotPaired,    // Wi-Fi phone skipped pairing but this PC doesn't know it
+  Cancelled,    // this PC's user cancelled pairing or didn't confirm in time
+  Failed,       // I/O error, timeout, bad signature...
 };
 
 // Two-sided pairing: the phone's user taps Allow and this PC's user confirms the same code.
 struct PairingHooks {
-  std::function<void(int code)> onPairing;        // the phone started asking its user; show the code
-  std::function<void()> onPhoneAllowed;           // the phone's user tapped Allow
-  std::function<bool(int timeoutMs)> waitForUser; // blocks until this PC's user answers; true = codes match
+  std::function<void(int code)> onPairing;         // the phone started asking its user; show the code
+  std::function<void()> onPhoneAllowed;            // the phone's user tapped Allow
+  std::function<bool(int timeoutMs)> waitForUser;  // blocks until this PC's user answers; true = codes match
 };
 
 // DENIED reasons from the phone.

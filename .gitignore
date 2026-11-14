@@ -16,6 +16,8 @@ app/modules/*/android/src/main/assets/THIRD-PARTY-NOTICES.txt
 
 # Release outputs (APK, installer)
 dist/
+# Downloaded tools (ktlint, see scripts/format.ps1)
+.tools/
 
 # Editors / OS
 .DS_Store

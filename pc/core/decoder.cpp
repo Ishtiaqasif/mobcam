@@ -38,12 +38,29 @@ std::vector<PhoneLens> ParseLensList(const char* text, size_t length) {
   return lenses;
 }
 
+// `count` ASCII digits as a number, or -1 if one of them isn't a digit.
+int Digits(const uint8_t* text, int count) {
+  int value = 0;
+  for (int i = 0; i < count; ++i) {
+    if (text[i] < '0' || text[i] > '9') return -1;
+    value = value * 10 + (text[i] - '0');
+  }
+  return value;
+}
+
 // Index of the next 00 00 01 at or after `from`, or npos.
 size_t FindStartCode(const std::vector<uint8_t>& b, size_t from) {
   const size_t n = b.size();
-  for (size_t i = from; i + 2 < n; ++i) {
-    if (b[i + 2] > 1) { i += 2; continue; }  // fast skip
-    if (b[i] == 0 && b[i + 1] == 0 && b[i + 2] == 1) return i;
+  size_t i = from;
+  while (i + 2 < n) {
+    // Fast skip: if b[i + 2] > 1, no start code can begin at i, i + 1 or i + 2.
+    if (b[i + 2] > 1) {
+      i += 3;
+    } else if (b[i] == 0 && b[i + 1] == 0 && b[i + 2] == 1) {
+      return i;
+    } else {
+      ++i;
+    }
   }
   return std::string::npos;
 }
@@ -118,6 +135,8 @@ void AccessUnitAssembler::OnNal(const uint8_t* nal, size_t length) {
 
   // MobCam SEI: payloadType 5 (user data unregistered), our UUID, then ASCII:
   //   [0] rotation '0'..'3' (x90)   [1] facing 'b'/'f'   [2..5] target height "0720"
+  //   [6..7] lens index   [8..9] frame rate setting "30"/"60"   [10..11] highest frame rate of the lens
+  // Older phone apps send shorter payloads.
   if (type == 6 && length >= 20 && nal[1] == 5 && nal[2] >= 17 && size_t(nal[2]) + 3 <= length &&
       memcmp(nal + 3, kRotationUuid, 16) == 0) {
     const uint8_t* info = nal + 19;
@@ -131,6 +150,13 @@ void AccessUnitAssembler::OnNal(const uint8_t* nal, size_t length) {
       phone_.targetHeight = target;
     }
     if (infoLength >= 8) phone_.lensIndex = (info[6] - '0') * 10 + (info[7] - '0');
+    if (infoLength >= 12) {
+      const int fps = Digits(info + 8, 2), maxFps = Digits(info + 10, 2);
+      if (fps >= 0 && maxFps >= 0) {
+        phone_.targetFps = fps;
+        phone_.maxFps = maxFps;
+      }
+    }
   }
   // Lens list (sent with keyframes)
   if (type == 6 && length >= 20 && nal[1] == 5 && nal[2] >= 16 && size_t(nal[2]) + 3 <= length &&
@@ -170,6 +196,8 @@ HRESULT H264Decoder::Init() {
   input->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
   input->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264);
   input->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+  // Nominal only: the phone switches between 30 and 60 fps mid-stream, and every sample carries
+  // its own time and duration. In low-latency mode the decoder outputs each frame right away.
   MFSetAttributeRatio(input.Get(), MF_MT_FRAME_RATE, 30, 1);
   if (FAILED(hr = mft_->SetInputType(0, input.Get(), 0))) return hr;
 
@@ -207,7 +235,8 @@ HRESULT H264Decoder::ConfigureOutput() {
   stride_ = MFGetAttributeUINT32(type.Get(), MF_MT_DEFAULT_STRIDE, codedWidth_);
   visible_ = {0, 0, LONG(codedWidth_), LONG(codedHeight_)};
   MFVideoArea area{};
-  if (SUCCEEDED(type->GetBlob(MF_MT_MINIMUM_DISPLAY_APERTURE, reinterpret_cast<UINT8*>(&area), sizeof(area), nullptr))) {
+  if (SUCCEEDED(
+          type->GetBlob(MF_MT_MINIMUM_DISPLAY_APERTURE, reinterpret_cast<UINT8*>(&area), sizeof(area), nullptr))) {
     visible_ = {area.OffsetX.value, area.OffsetY.value, area.OffsetX.value + area.Area.cx,
                 area.OffsetY.value + area.Area.cy};
   }
@@ -220,7 +249,8 @@ HRESULT H264Decoder::ConfigureOutput() {
   return S_OK;
 }
 
-HRESULT H264Decoder::Decode(const uint8_t* data, size_t length, LONGLONG timestamp, const FrameCallback& onFrame) {
+HRESULT H264Decoder::Decode(const uint8_t* data, size_t length, LONGLONG timestamp, LONGLONG duration,
+                            const FrameCallback& onFrame) {
   if (!mft_) return E_UNEXPECTED;
 
   ComPtr<IMFMediaBuffer> buffer;
@@ -236,7 +266,7 @@ HRESULT H264Decoder::Decode(const uint8_t* data, size_t length, LONGLONG timesta
   if (FAILED(hr = MFCreateSample(&sample))) return hr;
   sample->AddBuffer(buffer.Get());
   sample->SetSampleTime(timestamp);
-  sample->SetSampleDuration(333333);
+  sample->SetSampleDuration(duration);
 
   hr = mft_->ProcessInput(0, sample.Get(), 0);
   if (hr == MF_E_NOTACCEPTING) {
@@ -282,7 +312,10 @@ HRESULT H264Decoder::Drain(const FrameCallback& onFrame) {
     }
 
     ComPtr<IMFSample> decoded;
-    if (providesSamples_) decoded.Attach(out.pSample); else decoded = outSample_;
+    if (providesSamples_)
+      decoded.Attach(out.pSample);
+    else
+      decoded = outSample_;
 
     ComPtr<IMFMediaBuffer> buf;
     if (SUCCEEDED(decoded->GetBufferByIndex(0, &buf))) {
@@ -308,7 +341,10 @@ HRESULT H264Decoder::Drain(const FrameCallback& onFrame) {
         view.height = (visible_.bottom - visible_.top) & ~1;
         if (view.width > 0 && view.height > 0) onFrame(view);
       }
-      if (locked2d) buf2d->Unlock2D(); else buf->Unlock();
+      if (locked2d)
+        buf2d->Unlock2D();
+      else
+        buf->Unlock();
     }
   }
 }

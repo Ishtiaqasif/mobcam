@@ -36,7 +36,7 @@ std::vector<in_addr> BroadcastAddresses() {
         const ULONG prefix = u->OnLinkPrefixLength;
         if (prefix == 0 || prefix >= 32) continue;
         const ULONG ip = ntohl(sin->sin_addr.s_addr);
-        const ULONG mask = prefix == 0 ? 0 : (0xFFFFFFFFu << (32 - prefix));
+        const ULONG mask = 0xFFFFFFFFu << (32 - prefix);  // prefix is 1..31 here
         in_addr bcast;
         bcast.s_addr = htonl(ip | ~mask);
         out.push_back(bcast);
@@ -78,7 +78,10 @@ std::vector<PhoneAddress> DiscoverPhones(int timeoutMs, bool stopAtFirst) {
   for (;;) {
     const ULONGLONG now = GetTickCount64();
     if (now >= deadline) break;
-    if (now >= nextProbe) { sendProbes(); nextProbe = now + 400; }
+    if (now >= nextProbe) {
+      sendProbes();
+      nextProbe = now + 400;
+    }
 
     fd_set rd;
     FD_ZERO(&rd);

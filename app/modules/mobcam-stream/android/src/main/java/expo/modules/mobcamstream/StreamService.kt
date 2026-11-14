@@ -104,11 +104,15 @@ class StreamService : Service() {
       PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
     val stop = PendingIntent.getService(
-      this, 1, Intent(this, StreamService::class.java).setAction(ACTION_STOP),
+      this,
+      1,
+      Intent(this, StreamService::class.java).setAction(ACTION_STOP),
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
     val stopAction = Notification.Action.Builder(
-      Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel), "Stop", stop,
+      Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
+      "Stop",
+      stop,
     ).build()
     return builder
       .setSmallIcon(android.R.drawable.presence_video_online)
@@ -137,7 +141,13 @@ class StreamService : Service() {
     fun start(context: Context) {
       val intent = Intent(context, StreamService::class.java)
       try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
+        if (Build.VERSION.SDK_INT >=
+          Build.VERSION_CODES.O
+        ) {
+          context.startForegroundService(intent)
+        } else {
+          context.startService(intent)
+        }
       } catch (e: Exception) {
         Log.w(TAG, "Cannot start: ${e.message}")
       }

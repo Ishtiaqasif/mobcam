@@ -56,7 +56,9 @@ void PutU32(Bytes& b, uint32_t v) {
   b.push_back(uint8_t(v));
 }
 
-uint32_t GetU32(const uint8_t* p) { return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) | (uint32_t(p[2]) << 8) | p[3]; }
+uint32_t GetU32(const uint8_t* p) {
+  return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) | (uint32_t(p[2]) << 8) | p[3];
+}
 
 std::wstring Hex(const Bytes& b) {
   static const wchar_t* digits = L"0123456789abcdef";
@@ -92,7 +94,8 @@ struct Algorithms {
 
   Algorithms() {
     ok = BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&sha256, BCRYPT_SHA256_ALGORITHM, nullptr, 0)) &&
-         BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&hmac, BCRYPT_SHA256_ALGORITHM, nullptr, BCRYPT_ALG_HANDLE_HMAC_FLAG)) &&
+         BCRYPT_SUCCESS(
+             BCryptOpenAlgorithmProvider(&hmac, BCRYPT_SHA256_ALGORITHM, nullptr, BCRYPT_ALG_HANDLE_HMAC_FLAG)) &&
          BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&ecdh, BCRYPT_ECDH_P256_ALGORITHM, nullptr, 0)) &&
          BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&ecdsa, BCRYPT_ECDSA_P256_ALGORITHM, nullptr, 0)) &&
          BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&aesGcm, BCRYPT_AES_ALGORITHM, nullptr, 0)) &&
@@ -114,7 +117,8 @@ Bytes Sha256(const Bytes& data) {
 
 Bytes Hmac(const Bytes& key, const Bytes& data) {
   Bytes out(32);
-  BCryptHash(Alg().hmac, (PUCHAR)key.data(), ULONG(key.size()), (PUCHAR)data.data(), ULONG(data.size()), out.data(), 32);
+  BCryptHash(Alg().hmac, (PUCHAR)key.data(), ULONG(key.size()), (PUCHAR)data.data(), ULONG(data.size()), out.data(),
+             32);
   return out;
 }
 
@@ -149,7 +153,8 @@ BCRYPT_KEY_HANDLE ImportPoint(BCRYPT_ALG_HANDLE alg, ULONG magic, const uint8_t*
   std::copy(point + 1, point + 65, blob.begin() + sizeof(*h));
   BCRYPT_KEY_HANDLE key = nullptr;
   // CNG rejects points that are not on the curve.
-  if (!BCRYPT_SUCCESS(BCryptImportKeyPair(alg, nullptr, BCRYPT_ECCPUBLIC_BLOB, &key, blob.data(), ULONG(blob.size()), 0)))
+  if (!BCRYPT_SUCCESS(
+          BCryptImportKeyPair(alg, nullptr, BCRYPT_ECCPUBLIC_BLOB, &key, blob.data(), ULONG(blob.size()), 0)))
     return nullptr;
   return key;
 }
@@ -254,14 +259,16 @@ bool IsPaired(const Bytes& key) {
   const std::wstring id = Hex(Sha256(key));
   uint8_t data[kKeyLen + 8 + 256];
   DWORD cb = sizeof(data);
-  if (RegGetValueW(HKEY_CURRENT_USER, kPairedPhonesKey, id.c_str(), RRF_RT_REG_BINARY, nullptr, data, &cb) != ERROR_SUCCESS)
+  if (RegGetValueW(HKEY_CURRENT_USER, kPairedPhonesKey, id.c_str(), RRF_RT_REG_BINARY, nullptr, data, &cb) !=
+      ERROR_SUCCESS)
     return false;
   return cb >= kKeyLen && std::equal(key.begin(), key.end(), data);
 }
 
 void AddPaired(const Bytes& key, const std::string& name) {
   HKEY h = nullptr;
-  if (RegCreateKeyExW(HKEY_CURRENT_USER, kPairedPhonesKey, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &h, nullptr) != ERROR_SUCCESS)
+  if (RegCreateKeyExW(HKEY_CURRENT_USER, kPairedPhonesKey, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &h, nullptr) !=
+      ERROR_SUCCESS)
     return;
   Bytes data = key;
   const int64_t now = int64_t(time(nullptr));
@@ -308,7 +315,8 @@ Bytes Agree(BCRYPT_KEY_HANDLE own, const uint8_t* peerPoint) {
   if (!agreed) return {};
   Bytes z(32);
   ULONG cb = 0;
-  const bool derived = BCRYPT_SUCCESS(BCryptDeriveKey(secret, BCRYPT_KDF_RAW_SECRET, nullptr, z.data(), 32, &cb, 0)) && cb == 32;
+  const bool derived =
+      BCRYPT_SUCCESS(BCryptDeriveKey(secret, BCRYPT_KDF_RAW_SECRET, nullptr, z.data(), 32, &cb, 0)) && cb == 32;
   BCryptDestroySecret(secret);
   if (!derived) return {};
   std::reverse(z.begin(), z.end());  // CNG returns the raw secret little-endian
@@ -337,10 +345,11 @@ Bytes Ecdh(const Bytes& privateScalar, const Bytes& publicPoint, const Bytes& pe
   auto* h = reinterpret_cast<BCRYPT_ECCKEY_BLOB*>(blob.data());
   h->dwMagic = BCRYPT_ECDH_PRIVATE_P256_MAGIC;
   h->cbKey = 32;
-  memcpy(blob.data() + sizeof(BCRYPT_ECCKEY_BLOB), publicPoint.data() + 1, 64);  // X ‖ Y
+  memcpy(blob.data() + sizeof(BCRYPT_ECCKEY_BLOB), publicPoint.data() + 1, 64);     // X ‖ Y
   memcpy(blob.data() + sizeof(BCRYPT_ECCKEY_BLOB) + 64, privateScalar.data(), 32);  // d
   BCRYPT_KEY_HANDLE own = nullptr;
-  if (!BCRYPT_SUCCESS(BCryptImportKeyPair(Alg().ecdh, nullptr, BCRYPT_ECCPRIVATE_BLOB, &own, blob.data(), ULONG(blob.size()), 0)))
+  if (!BCRYPT_SUCCESS(
+          BCryptImportKeyPair(Alg().ecdh, nullptr, BCRYPT_ECCPRIVATE_BLOB, &own, blob.data(), ULONG(blob.size()), 0)))
     return {};
   Bytes z = Agree(own, peerPoint.data());
   BCryptDestroyKey(own);
@@ -350,7 +359,8 @@ Bytes Ecdh(const Bytes& privateScalar, const Bytes& publicPoint, const Bytes& pe
 bool RecordCipher::Init(const Bytes& key) {
   Clear();
   counter_ = 0;
-  return BCRYPT_SUCCESS(BCryptGenerateSymmetricKey(Alg().aesGcm, &key_, nullptr, 0, (PUCHAR)key.data(), ULONG(key.size()), 0));
+  return BCRYPT_SUCCESS(
+      BCryptGenerateSymmetricKey(Alg().aesGcm, &key_, nullptr, 0, (PUCHAR)key.data(), ULONG(key.size()), 0));
 }
 
 void RecordCipher::Clear() {
@@ -381,8 +391,8 @@ bool RecordCipher::Seal(uint8_t type, const uint8_t* payload, size_t length, Byt
   info.pbTag = out + plain.size();
   info.cbTag = 16;
   ULONG cb = 0;
-  return BCRYPT_SUCCESS(BCryptEncrypt(key_, plain.data(), ULONG(plain.size()), &info, nullptr, 0, out,
-                                      ULONG(plain.size()), &cb, 0));
+  return BCRYPT_SUCCESS(
+      BCryptEncrypt(key_, plain.data(), ULONG(plain.size()), &info, nullptr, 0, out, ULONG(plain.size()), &cb, 0));
 }
 
 bool RecordCipher::Open(const uint8_t header[4], const uint8_t* sealed, size_t sealedLen, Bytes& plain) {
@@ -400,7 +410,8 @@ bool RecordCipher::Open(const uint8_t header[4], const uint8_t* sealed, size_t s
   info.pbTag = (PUCHAR)sealed + n;
   info.cbTag = 16;
   ULONG cb = 0;
-  return BCRYPT_SUCCESS(BCryptDecrypt(key_, (PUCHAR)sealed, ULONG(n), &info, nullptr, 0, plain.data(), ULONG(n), &cb, 0));
+  return BCRYPT_SUCCESS(
+      BCryptDecrypt(key_, (PUCHAR)sealed, ULONG(n), &info, nullptr, 0, plain.data(), ULONG(n), &cb, 0));
 }
 
 void RecordCipher::Nonce(uint8_t nonce[12]) {
@@ -527,7 +538,8 @@ HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const PairingHooks&
 
   // Ephemeral key + commitment.
   BCRYPT_KEY_HANDLE eph = nullptr;
-  if (!BCRYPT_SUCCESS(BCryptGenerateKeyPair(Alg().ecdh, &eph, 256, 0)) || !BCRYPT_SUCCESS(BCryptFinalizeKeyPair(eph, 0)))
+  if (!BCRYPT_SUCCESS(BCryptGenerateKeyPair(Alg().ecdh, &eph, 256, 0)) ||
+      !BCRYPT_SUCCESS(BCryptFinalizeKeyPair(eph, 0)))
     return fail("cannot create a session key");
   struct KeyGuard {
     BCRYPT_KEY_HANDLE k;
@@ -550,7 +562,8 @@ HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const PairingHooks&
 
   // HELLO
   Bytes hello;
-  if (readMessage(hello, true) != kMsgHello || hello.size() < kKeyLen * 2 + kNonceLen) return fail("bad HELLO from the phone");
+  if (readMessage(hello, true) != kMsgHello || hello.size() < kKeyLen * 2 + kNonceLen)
+    return fail("bad HELLO from the phone");
   const Bytes phoneKey(hello.begin(), hello.begin() + kKeyLen);
   const uint8_t* ePhone = hello.data() + kKeyLen;
   std::string phoneName(hello.begin() + kKeyLen * 2 + kNonceLen, hello.end());
@@ -588,9 +601,11 @@ HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const PairingHooks&
     out.deniedReason = body.empty() ? 0 : body[0];
     return HandshakeResult::Denied;
   }
-  if (type != kMsgPhoneAuth || body.size() != kSigLen) return fail(pairing ? "pairing timed out" : "bad answer from the phone");
+  if (type != kMsgPhoneAuth || body.size() != kSigLen)
+    return fail(pairing ? "pairing timed out" : "bad answer from the phone");
   const Bytes phoneAuthLabel = Str("MOBCAM v2 phone auth");
-  if (!VerifyEcdsa(phoneKey.data(), Cat({&phoneAuthLabel, &h}), body.data())) return fail("the phone's signature is invalid");
+  if (!VerifyEcdsa(phoneKey.data(), Cat({&phoneAuthLabel, &h}), body.data()))
+    return fail("the phone's signature is invalid");
 
   // Trust. A new phone needs this PC's user to confirm the same code too: otherwise any device on
   // the network that answers discovery could pair itself with this PC and feed it video.
@@ -614,7 +629,8 @@ HandshakeResult SecureSession::Handshake(SOCKET s, bool usb, const PairingHooks&
   return HandshakeResult::Ok;
 }
 
-bool SecureSession::Receive(const uint8_t* data, size_t length, const std::function<void(const uint8_t*, size_t)>& onVideo) {
+bool SecureSession::Receive(const uint8_t* data, size_t length,
+                            const std::function<void(const uint8_t*, size_t)>& onVideo) {
   Impl& m = *impl_;
   if (!m.recv.ready()) return false;
   m.pending.insert(m.pending.end(), data, data + length);

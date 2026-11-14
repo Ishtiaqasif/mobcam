@@ -44,10 +44,8 @@ inline void FillNv12(const Nv12View& d, uint8_t y, uint8_t u, uint8_t v) {
 }
 
 inline void CopyNv12(const Nv12ConstView& s, const Nv12View& d) {
-  for (int r = 0; r < d.height; ++r)
-    memcpy(d.y + size_t(r) * d.yPitch, s.y + size_t(r) * s.yPitch, d.width);
-  for (int r = 0; r < d.height / 2; ++r)
-    memcpy(d.uv + size_t(r) * d.uvPitch, s.uv + size_t(r) * s.uvPitch, d.width);
+  for (int r = 0; r < d.height; ++r) memcpy(d.y + size_t(r) * d.yPitch, s.y + size_t(r) * s.yPitch, d.width);
+  for (int r = 0; r < d.height / 2; ++r) memcpy(d.uv + size_t(r) * d.uvPitch, s.uv + size_t(r) * s.uvPitch, d.width);
 }
 
 namespace detail {
@@ -132,11 +130,19 @@ class Nv12Blitter {
       for (int dx = 0; dx < cw; ++dx) {
         int x0, x1, fx, y0, y1, fy;
         if (!swapped) {
-          x0 = cCol_.i0[dx]; x1 = cCol_.i1[dx]; fx = cCol_.w[dx];
-          y0 = ra0; y1 = ra1; fy = rw;
+          x0 = cCol_.i0[dx];
+          x1 = cCol_.i1[dx];
+          fx = cCol_.w[dx];
+          y0 = ra0;
+          y1 = ra1;
+          fy = rw;
         } else {
-          x0 = ra0; x1 = ra1; fx = rw;
-          y0 = cCol_.i0[dx]; y1 = cCol_.i1[dx]; fy = cCol_.w[dx];
+          x0 = ra0;
+          x1 = ra1;
+          fx = rw;
+          y0 = cCol_.i0[dx];
+          y1 = cCol_.i1[dx];
+          fy = cCol_.w[dx];
         }
         const uint8_t* r0 = src.uv + size_t(y0) * src.uvPitch;
         const uint8_t* r1 = src.uv + size_t(y1) * src.uvPitch;
@@ -151,7 +157,12 @@ class Nv12Blitter {
 
  private:
   void Prepare(int sw, int sh, int dw, int dh, int rotation, bool fill) {
-    srcW_ = sw; srcH_ = sh; dstW_ = dw; dstH_ = dh; rotation_ = rotation; fill_ = fill;
+    srcW_ = sw;
+    srcH_ = sh;
+    dstW_ = dw;
+    dstH_ = dh;
+    rotation_ = rotation;
+    fill_ = fill;
     const bool swapped = rotation == 90 || rotation == 270;
     const int rw = swapped ? sh : sw;  // rotated picture size
     const int rh = swapped ? sw : sh;
@@ -186,10 +197,30 @@ class Nv12Blitter {
     int colSrc, rowSrc;
     bool colRev, rowRev;
     switch (rotation) {
-      case 90:  colSrc = sh; colRev = true;  rowSrc = sw; rowRev = false; break;
-      case 180: colSrc = sw; colRev = true;  rowSrc = sh; rowRev = true;  break;
-      case 270: colSrc = sh; colRev = false; rowSrc = sw; rowRev = true;  break;
-      default:  colSrc = sw; colRev = false; rowSrc = sh; rowRev = false; break;
+      case 90:
+        colSrc = sh;
+        colRev = true;
+        rowSrc = sw;
+        rowRev = false;
+        break;
+      case 180:
+        colSrc = sw;
+        colRev = true;
+        rowSrc = sh;
+        rowRev = true;
+        break;
+      case 270:
+        colSrc = sh;
+        colRev = false;
+        rowSrc = sw;
+        rowRev = true;
+        break;
+      default:
+        colSrc = sw;
+        colRev = false;
+        rowSrc = sh;
+        rowRev = false;
+        break;
     }
     detail::BuildAxis(yCol_, outW_, colSrc, colRev, viewX0, viewXSpan);
     detail::BuildAxis(yRow_, outH_, rowSrc, rowRev, viewY0, viewYSpan);

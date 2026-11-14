@@ -25,7 +25,11 @@ npm run pc:run          # build and start the Windows app
 npm run phone:typecheck
 npm run pc:test         # PC unit tests
 npm run phone:test      # phone unit tests (no phone needed)
+npm run format          # format all code before committing (`npm run lint` only checks)
 ```
+
+`git blame` skips the one-time reformat commits listed in `.git-blame-ignore-revs` on GitHub.
+Locally, run once: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
 ## Questions and ideas
 
@@ -63,8 +67,9 @@ moves it to **Done** on the board.
 - The phone and the PC talk over the protocol in [docs/protocol.md](docs/protocol.md). If you
   change one side, update the other side and the document in the same pull request, and keep
   older peers working where you can.
-- CI must pass (PC build and tests, phone typecheck, tests, third-party notices and Android
-  build). Run the tests locally with `npm run pc:test` and `npm run phone:test`.
+- CI must pass (formatting and lint, PC build and tests, phone typecheck, tests, third-party
+  notices and Android build). Run `npm run format` before committing, and the tests locally with
+  `npm run pc:test` and `npm run phone:test`.
 - Changing the protocol bytes (SEI, handshake, records) on purpose? Update
   `tests/fixtures/gen_fixtures.py`, regenerate with `python tests/fixtures/gen_fixtures.py`, and
   commit the fixtures with both sides' changes.

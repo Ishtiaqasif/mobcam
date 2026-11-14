@@ -184,8 +184,12 @@ slice NAL(s)
 AUD (00 00 00 01 09 F0)   marks the frame complete so the PC can decode it immediately
 ```
 
-A new client receives nothing until its handshake is done and the next keyframe arrives. If a client falls behind (queue of 30
-frames full) its backlog is dropped and it resyncs on the next keyframe.
+A new client receives nothing until its handshake is done and the next keyframe arrives. If a client falls behind (about
+one second of frames queued: 30 at 30 fps, 60 at 60 fps) its backlog is dropped and it resyncs on the next keyframe.
+
+The phone streams at 30 or 60 fps (the `FPS` setting). It uses 60 only where the current lens
+offers a 60 fps AE range, delivers the stream size that fast and the encoder accepts it; otherwise
+it streams at 30 and keeps the setting.
 
 ### Metadata SEI
 
@@ -195,11 +199,14 @@ than MobCam ignore them.
 
 | UUID (ASCII) | Payload | Example |
 |---|---|---|
-| `MOBCAM-ROTATION!` | `R F HHHH LL`: rotation digit `0`–`3` (×90° clockwise to make the picture upright), facing `b`/`f`, 4-digit target height, 2-digit lens index | `1b072000` |
+| `MOBCAM-ROTATION!` | `R F HHHH LL SS MM`: rotation digit `0`–`3` (×90° clockwise to make the picture upright), facing `b`/`f`, 4-digit target height, 2-digit lens index, 2-digit frame rate setting (`30`/`60`), 2-digit highest frame rate the current lens offers at the current size | `1b0720003060` |
 | `MOBCAM-LENSLIST!` | `label,zoom,b|f` entries separated by `;`, in lens-index order (≤ 220 chars) | `Ultra-wide,0.68,b;Wide,1,b;Telephoto,3.4,b;Front,1,f` |
 
-The PC must accept shorter `MOBCAM-ROTATION!` payloads (older phones send only rotation, or
-rotation + facing + height).
+The phone streams at the setting if the highest frame rate allows it, otherwise at 30.
+
+The PC must accept shorter `MOBCAM-ROTATION!` payloads (older phones send only rotation;
+rotation + facing + height; or everything up to the lens index). A phone without the frame rate
+fields streams at 30 fps and doesn't understand `FPS`, so the PC doesn't offer it.
 
 ## Commands — PC → phone
 
@@ -211,6 +218,7 @@ One ASCII command per COMMAND record (v1 sent them as plain lines ending in `\n`
 | `FACING front` / `FACING back` | Front camera / last used back lens |
 | `SWITCH` | Toggle front/back |
 | `RES 480` / `RES 720` / `RES 1080` | Max stream height (the closest supported size at or below it, 16:9 preferred) |
+| `FPS 30` / `FPS 60` | Frame rate setting (60 only where the lens supports it, see [Video frames](#video-frames)) |
 
 The phone confirms changes indirectly through the next `MOBCAM-ROTATION!` SEI.
 
@@ -226,5 +234,7 @@ Unchanged in v2: discovery reveals only the name and port, and nothing works wit
 it into `Global\MobCamSharedFrame_v1` (triple-buffered, layout in
 [shared_frame.h](../pc/common/shared_frame.h)). `mobcam-source.dll`, running inside Frame
 Server, creates that mapping, scales the canvas to the size the app asked for (1080p, 720p or
-360p) and shows a "waiting for phone" card when no frame arrived for 1.5 s. It stamps
+360p, each at 30 or 60 fps; the 30 fps formats are listed first) and shows a "waiting for phone"
+card when no frame arrived for 1.5 s. It delivers frames at the rate of the format the app chose,
+repeating the latest canvas when the phone sends fewer. It stamps
 `lastReadTick` so the PC app can show whether an app is using the camera.

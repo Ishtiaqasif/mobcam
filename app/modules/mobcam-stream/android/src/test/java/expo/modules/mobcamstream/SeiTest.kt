@@ -17,6 +17,8 @@ class SeiTest {
         front = v.getValue("$p.facing") == "f",
         targetHeight = v.getValue("$p.height").toInt(),
         lensIndex = v.getValue("$p.lens").toInt(),
+        targetFps = v.getValue("$p.fps").toInt(),
+        maxFps = v.getValue("$p.maxfps").toInt(),
       )
       assertArrayEquals(p, v.bytes("$p.nal"), nal)
     }
@@ -43,7 +45,7 @@ class SeiTest {
   }
 
   @Test fun metadataHasNoStartCodeEmulation() {
-    val nal = Sei.metadata(rotation = 0, front = false, targetHeight = 480, lensIndex = 0)
+    val nal = Sei.metadata(rotation = 0, front = false, targetHeight = 480, lensIndex = 0, targetFps = 0, maxFps = 0)
     for (i in 4 until nal.size - 2) assertTrue(!(nal[i] == 0.toByte() && nal[i + 1] == 0.toByte()))
   }
 }

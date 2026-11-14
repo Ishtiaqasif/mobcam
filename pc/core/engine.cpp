@@ -41,7 +41,7 @@ class Engine {
   int VcamState() {
     std::lock_guard<std::mutex> g(vcamMu_);
     if (vcam_.running()) return MC_VCAM_RUNNING;
-    if (vcamError_) return MC_VCAM_FAILED;
+    if (FAILED(vcamError_)) return MC_VCAM_FAILED;  // 0 or the HRESULT of the last failed start
     if (!IsSourceRegistered()) return MC_VCAM_NOT_INSTALLED;
     return IsSourceOutdated() ? MC_VCAM_OUTDATED : MC_VCAM_INSTALLED;
   }
@@ -95,7 +95,7 @@ class Engine {
       Copy(status_.message, 256, L"Looking for your phone…");
     }
     std::string h = Utf8(host);
-    worker_ =std::thread([this, link, h, port] { Worker(link, h, uint16_t(port > 0 ? port : kStreamPort)); });
+    worker_ = std::thread([this, link, h, port] { Worker(link, h, uint16_t(port > 0 ? port : kStreamPort)); });
   }
 
   void Disconnect() {
@@ -242,7 +242,7 @@ class Engine {
   }
 
   Engine() : canvas_(kCanvasBytes) {
-    Nv12View v{canvas_.data(), int(kCanvasWidth), canvas_.data() + size_t(kCanvasWidth) * kCanvasHeight,
+    Nv12View v{canvas_.data(),    int(kCanvasWidth), canvas_.data() + size_t(kCanvasWidth) * kCanvasHeight,
                int(kCanvasWidth), int(kCanvasWidth), int(kCanvasHeight)};
     FillNv12(v, kBlackY, kNeutralUV, kNeutralUV);
     status_.phone_rotation = -1;
@@ -258,6 +258,7 @@ class Engine {
     status_.phone_rotation = -1;
     status_.phone_facing = -1;
     status_.phone_target_height = 0;
+    status_.phone_fps = status_.phone_max_fps = 0;
     status_.phone_lens = -1;
     status_.lens_count = 0;
     lenses_.clear();
@@ -353,7 +354,8 @@ class Engine {
             return false;
           case kDeniedTimeout:
             *retry = false;
-            SetProblem(MC_STATE_IDLE, MC_PROBLEM_PAIRING_TIMEOUT, L"Pairing timed out. Connect again and tap Allow on the phone.");
+            SetProblem(MC_STATE_IDLE, MC_PROBLEM_PAIRING_TIMEOUT,
+                       L"Pairing timed out. Connect again and tap Allow on the phone.");
             return false;
           case kDeniedBadPc:
             SetProblem(MC_STATE_SEARCHING, MC_PROBLEM_AUTH_FAILED, L"The phone rejected this PC's identity. Retrying…");
@@ -367,7 +369,8 @@ class Engine {
       default: {
         if (decision == 0) {  // the user cancelled while the phone was still asking (socket closed)
           *retry = false;
-          SetProblem(MC_STATE_IDLE, MC_PROBLEM_CANCELLED, L"Pairing cancelled. Nothing was saved on the PC or the phone.");
+          SetProblem(MC_STATE_IDLE, MC_PROBLEM_CANCELLED,
+                     L"Pairing cancelled. Nothing was saved on the PC or the phone.");
           return false;
         }
         // A timeout while the phone was asking means nobody answered.
@@ -522,8 +525,9 @@ class Engine {
         Render(frame, assembler.phone().rotation);
       };
       assembler.onAccessUnit = [&](const std::vector<uint8_t>& au, bool) {
-        decoder.Decode(au.data(), au.size(), timestamp, onFrame);
-        timestamp += 333333;
+        const LONGLONG duration = 10'000'000 / assembler.phone().StreamFps();
+        decoder.Decode(au.data(), au.size(), timestamp, duration, onFrame);
+        timestamp += duration;
       };
 
       auto onVideo = [&](const uint8_t* data, size_t length) { assembler.Push(data, length); };
@@ -550,6 +554,8 @@ class Engine {
           status_.phone_rotation = info.rotation;
           status_.phone_facing = info.facing;
           status_.phone_target_height = info.targetHeight;
+          status_.phone_fps = info.targetFps;
+          status_.phone_max_fps = info.maxFps;
           status_.phone_lens = info.lensIndex;
           if (!info.lenses.empty()) lenses_ = info.lenses;
           status_.lens_count = int32_t(lenses_.size());
@@ -568,8 +574,8 @@ class Engine {
           std::lock_guard<std::mutex> g(statusMu_);
           ResetStreamStatus();
         }
-        SetState(MC_STATE_SEARCHING, damaged ? L"Received damaged or forged data. Reconnecting…"
-                                             : L"Phone disconnected. Reconnecting…");
+        SetState(MC_STATE_SEARCHING,
+                 damaged ? L"Received damaged or forged data. Reconnecting…" : L"Phone disconnected. Reconnecting…");
         Wait(1000);
       }
     }
@@ -582,7 +588,7 @@ class Engine {
     appliedRotation_ = rotation;
 
     std::lock_guard<std::mutex> g(canvasMu_);
-    Nv12View canvas{canvas_.data(), int(kCanvasWidth), canvas_.data() + size_t(kCanvasWidth) * kCanvasHeight,
+    Nv12View canvas{canvas_.data(),    int(kCanvasWidth), canvas_.data() + size_t(kCanvasWidth) * kCanvasHeight,
                     int(kCanvasWidth), int(kCanvasWidth), int(kCanvasHeight)};
     if (rotation == 0 && frame.width == int(kCanvasWidth) && frame.height == int(kCanvasHeight)) {
       CopyNv12(frame, canvas);
@@ -680,9 +686,7 @@ MC_API int32_t mc_get_lenses(mc_lens* lenses, int32_t max_lenses) {
   return Engine::Get().GetLenses(lenses, max_lenses);
 }
 
-MC_API int32_t mc_phone_command(const char* command) {
-  return command && Engine::Get().SendCommand(command) ? 1 : 0;
-}
+MC_API int32_t mc_phone_command(const char* command) { return command && Engine::Get().SendCommand(command) ? 1 : 0; }
 
 MC_API int32_t mc_get_paired_phones(mc_paired_phone* phones, int32_t max_phones) {
   if (!phones || max_phones <= 0) return 0;

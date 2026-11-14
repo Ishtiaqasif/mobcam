@@ -26,8 +26,8 @@ bool FrameSource::EnsureMapping() {
 
   // Frame Server runs in session 0, so it may create Global\ objects. Other processes that
   // load this DLL (the app, the monitor service) fall back to opening an existing mapping.
-  HANDLE h = CreateFileMappingW(INVALID_HANDLE_VALUE, &sa, PAGE_READWRITE,
-                                DWORD(kMappingBytes >> 32), DWORD(kMappingBytes & 0xFFFFFFFF), kMappingName);
+  HANDLE h = CreateFileMappingW(INVALID_HANDLE_VALUE, &sa, PAGE_READWRITE, DWORD(kMappingBytes >> 32),
+                                DWORD(kMappingBytes & 0xFFFFFFFF), kMappingName);
   const DWORD createError = GetLastError();
   if (sd) LocalFree(sd);
 
@@ -64,10 +64,17 @@ void FrameSource::Fill(const Nv12View& dst) {
     const LONG slot = header->latestSlot;
     const auto age = GetTickCount64() - static_cast<unsigned long long>(header->lastWriteTick);
     if (HeaderValid(header) && slot >= 0 && slot < LONG(kSlotCount) && age < kStaleMs) {
-      if (!hadSignal_) { Log(L"FrameSource: receiving frames"); hadSignal_ = true; }
+      if (!hadSignal_) {
+        Log(L"FrameSource: receiving frames");
+        hadSignal_ = true;
+      }
       uint8_t* base = SlotPtr(view_, uint32_t(slot));
-      Nv12ConstView src{base, int(kCanvasWidth), base + size_t(kCanvasWidth) * kCanvasHeight,
-                        int(kCanvasWidth), int(kCanvasWidth), int(kCanvasHeight)};
+      Nv12ConstView src{base,
+                        int(kCanvasWidth),
+                        base + size_t(kCanvasWidth) * kCanvasHeight,
+                        int(kCanvasWidth),
+                        int(kCanvasWidth),
+                        int(kCanvasHeight)};
       if (dst.width == int(kCanvasWidth) && dst.height == int(kCanvasHeight)) {
         CopyNv12(src, dst);
       } else {
@@ -77,7 +84,10 @@ void FrameSource::Fill(const Nv12View& dst) {
     }
   }
 
-  if (hadSignal_) { Log(L"FrameSource: signal lost"); hadSignal_ = false; }
+  if (hadSignal_) {
+    Log(L"FrameSource: signal lost");
+    hadSignal_ = false;
+  }
   if (noSignalW_ != dst.width || noSignalH_ != dst.height) RenderNoSignal(dst.width, dst.height);
   const uint8_t* y = noSignal_.data();
   Nv12ConstView src{y, dst.width, y + size_t(dst.width) * dst.height, dst.width, dst.width, dst.height};
@@ -127,8 +137,8 @@ void FrameSource::RenderNoSignal(int width, int height) {
     DeleteObject(font);
   };
   drawLine(L"MobCam", height / 9, FW_BOLD, RGB(240, 242, 245), height * 42 / 100);
-  drawLine(L"Waiting for your phone — start mobcam.exe on this PC", height / 26, FW_NORMAL,
-           RGB(150, 156, 166), height * 58 / 100);
+  drawLine(L"Waiting for your phone — start mobcam.exe on this PC", height / 26, FW_NORMAL, RGB(150, 156, 166),
+           height * 58 / 100);
   GdiFlush();
 
   // BGRA -> NV12 (BT.601, video range)

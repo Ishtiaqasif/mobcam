@@ -34,13 +34,13 @@ enum mc_state {
 /* Why the last connection attempt failed (stays set until the next mc_connect). */
 enum mc_problem {
   MC_PROBLEM_NONE = 0,
-  MC_PROBLEM_PHONE_TOO_OLD = 1,  /* update the phone app */
-  MC_PROBLEM_PC_TOO_OLD = 2,     /* update the PC app */
-  MC_PROBLEM_DENIED = 3,         /* user tapped Deny on the phone (engine stops retrying) */
-  MC_PROBLEM_PAIRING_TIMEOUT = 4,/* nobody answered the phone's prompt (engine stops retrying) */
-  MC_PROBLEM_NOT_PAIRED = 5,     /* phone trusts this PC but this PC forgot the phone (stops) */
-  MC_PROBLEM_AUTH_FAILED = 6,    /* bad signature / handshake error (keeps retrying) */
-  MC_PROBLEM_CANCELLED = 7,      /* this PC's user cancelled pairing or didn't confirm in time (stops) */
+  MC_PROBLEM_PHONE_TOO_OLD = 1,   /* update the phone app */
+  MC_PROBLEM_PC_TOO_OLD = 2,      /* update the PC app */
+  MC_PROBLEM_DENIED = 3,          /* user tapped Deny on the phone (engine stops retrying) */
+  MC_PROBLEM_PAIRING_TIMEOUT = 4, /* nobody answered the phone's prompt (engine stops retrying) */
+  MC_PROBLEM_NOT_PAIRED = 5,      /* phone trusts this PC but this PC forgot the phone (stops) */
+  MC_PROBLEM_AUTH_FAILED = 6,     /* bad signature / handshake error (keeps retrying) */
+  MC_PROBLEM_CANCELLED = 7,       /* this PC's user cancelled pairing or didn't confirm in time (stops) */
 };
 
 /* While state == MC_STATE_PAIRING: what is still missing. Pairing needs both users to confirm
@@ -57,13 +57,13 @@ enum mc_vcam {
   MC_VCAM_INSTALLED = 1, /* installed and current, not started */
   MC_VCAM_OUTDATED = 2,  /* installed DLL differs from the bundled one */
   MC_VCAM_RUNNING = 3,
-  MC_VCAM_FAILED = 4,    /* start failed, see vcam_error */
+  MC_VCAM_FAILED = 4, /* start failed, see vcam_error */
 };
 
 typedef struct mc_status {
-  int32_t state;               /* mc_state */
-  int32_t link;                /* MC_LINK_USB / MC_LINK_WIFI while connected */
-  int32_t width, height;       /* phone stream size */
+  int32_t state;         /* mc_state */
+  int32_t link;          /* MC_LINK_USB / MC_LINK_WIFI while connected */
+  int32_t width, height; /* phone stream size */
   int32_t fps;
   int32_t kbps;
   int32_t rotation;            /* rotation applied to the picture */
@@ -80,6 +80,8 @@ typedef struct mc_status {
   int32_t pairing_code;        /* 0..999999 while state == MC_STATE_PAIRING, else -1 */
   int32_t problem;             /* mc_problem */
   int32_t pairing_stage;       /* mc_pairing_stage */
+  int32_t phone_fps;           /* frame rate setting 30/60, 0 = phone app without it (send no FPS) */
+  int32_t phone_max_fps;       /* highest frame rate of the phone's lens at this size, 0 unknown */
 } mc_status;
 
 typedef struct mc_paired_phone {
@@ -127,8 +129,8 @@ MC_API int32_t mc_get_preview(uint8_t* bgra, int32_t width, int32_t height, int3
 /* Lenses of the connected phone (ultra-wide, wide, telephoto, front...). Returns the count. */
 MC_API int32_t mc_get_lenses(mc_lens* lenses, int32_t max_lenses);
 
-/* Phone remote control: "SWITCH", "FACING front|back", "LENS <index>", "RES 480|720|1080".
- * Returns 1 if sent. */
+/* Phone remote control: "SWITCH", "FACING front|back", "LENS <index>", "RES 480|720|1080",
+ * "FPS 30|60" (only if status.phone_fps > 0). Returns 1 if sent. */
 MC_API int32_t mc_phone_command(const char* command);
 
 /* Answers the pairing question while state == MC_STATE_PAIRING: 1 = the phone shows the same

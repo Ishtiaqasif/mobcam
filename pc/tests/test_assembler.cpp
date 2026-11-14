@@ -59,9 +59,8 @@ struct Collector {
 // metadata with each P frame, the last one in two slices.
 Bytes ThreeFrames() {
   const Bytes meta = Hex(Get(Sei(), "metadata0.nal"));
-  return Cat({Nal(7), Nal(8), Hex(Get(Sei(), "lenses.nal")), meta, Nal(5), kAud,
-              meta, Nal(1), kAud,
-              meta, Nal(1, true), Nal(1, false), kAud});
+  return Cat({Nal(7), Nal(8), Hex(Get(Sei(), "lenses.nal")), meta, Nal(5), kAud, meta, Nal(1), kAud, meta, Nal(1, true),
+              Nal(1, false), kAud});
 }
 
 size_t CountNals(const Bytes& au) {
@@ -118,6 +117,8 @@ TEST_CASE("reads the phone's metadata SEI (fixture)") {
     CHECK(phone.facing == (Get(Sei(), p + ".facing") == "f" ? 1 : 0));
     CHECK(phone.targetHeight == std::stoi(Get(Sei(), p + ".height")));
     CHECK(phone.lensIndex == std::stoi(Get(Sei(), p + ".lens")));
+    CHECK(phone.targetFps == std::stoi(Get(Sei(), p + ".fps")));
+    CHECK(phone.maxFps == std::stoi(Get(Sei(), p + ".maxfps")));
   }
 }
 
@@ -140,6 +141,14 @@ TEST_CASE("reads the lens list SEI (fixture)") {
 }
 
 TEST_CASE("older phone apps' shorter metadata SEI") {
+  SUBCASE("no frame rate (before 60 fps)") {
+    Collector c;
+    const Bytes stream = Cat({SeiNal("MOBCAM-ROTATION!", "1b072002"), Nal(5), kAud});
+    c.assembler.Push(stream.data(), stream.size());
+    CHECK(c.assembler.phone().lensIndex == 2);
+    CHECK(c.assembler.phone().targetFps == 0);
+    CHECK(c.assembler.phone().maxFps == 0);
+  }
   SUBCASE("rotation, facing and height, no lens index") {
     Collector c;
     const Bytes stream = Cat({SeiNal("MOBCAM-ROTATION!", "1b0720"), Nal(5), kAud});

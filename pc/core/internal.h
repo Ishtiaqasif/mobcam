@@ -48,11 +48,16 @@ struct PhoneLens {
 
 // Phone metadata carried in MobCam's SEI.
 struct PhoneInfo {
-  int rotation = -1;      // clockwise degrees to make the picture upright
-  int facing = -1;        // 0 back, 1 front
-  int targetHeight = 0;   // 480 / 720 / 1080
-  int lensIndex = -1;     // index into lenses
+  int rotation = -1;     // clockwise degrees to make the picture upright
+  int facing = -1;       // 0 back, 1 front
+  int targetHeight = 0;  // 480 / 720 / 1080
+  int lensIndex = -1;    // index into lenses
+  int targetFps = 0;     // frame rate setting, 30 / 60; 0 = phone app without the setting
+  int maxFps = 0;        // highest frame rate of the current lens at this size; 0 unknown
   std::vector<PhoneLens> lenses;
+
+  // Frame rate the phone streams at: its setting where the lens allows it, otherwise 30.
+  int StreamFps() const { return targetFps >= 60 && maxFps >= 60 ? 60 : 30; }
 };
 
 // Splits a raw H.264 Annex-B byte stream into access units and extracts MobCam's SEI.
@@ -83,7 +88,9 @@ class H264Decoder {
 
   HRESULT Init();
   void Close();
-  HRESULT Decode(const uint8_t* data, size_t length, LONGLONG timestamp, const FrameCallback& onFrame);
+  // timestamp and duration in 100 ns units.
+  HRESULT Decode(const uint8_t* data, size_t length, LONGLONG timestamp, LONGLONG duration,
+                 const FrameCallback& onFrame);
 
  private:
   HRESULT ConfigureOutput();
@@ -123,7 +130,7 @@ bool IsSourceOutdated();  // installed DLL differs from the one next to this mod
 int InstallSource();      // needs admin
 int UninstallSource();    // needs admin
 int RunElevated(const std::wstring& exe, const std::wstring& args);  // UAC, waits, returns exit code
-std::wstring ModuleDir();  // folder of the binary containing the MobCam core
+std::wstring ModuleDir();                                            // folder of the binary containing the MobCam core
 
 class VirtualCamera {
  public:
